@@ -1,0 +1,48 @@
+name: Train alerts
+
+on:
+  schedule:
+    # Every 10 minutes, 05:00-23:59 UTC. GitHub may delay scheduled runs by a few minutes.
+    - cron: "*/10 5-23 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: train-alerts
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run tests
+        run: python -m unittest discover -s tests
+
+      # Restores the statuses saved by the last run so you are not texted twice about the same problem.
+      - name: Restore last known status
+        uses: actions/cache/restore@v4
+        with:
+          path: state.json
+          key: train-state-${{ github.run_id }}
+          restore-keys: train-state-
+
+      - name: Check lines and send SMS
+        env:
+          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
+          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
+          TWILIO_FROM_NUMBER: ${{ secrets.TWILIO_FROM_NUMBER }}
+          ALERT_TO_NUMBER: ${{ secrets.ALERT_TO_NUMBER }}
+          TFL_APP_KEY: ${{ secrets.TFL_APP_KEY }}
+        run: python train_alerts.py
+
+      - name: Save status
+        if: success()
+        uses: actions/cache/save@v4
+        with:
+          path: state.json
+          key: train-state-${{ github.run_id }}
