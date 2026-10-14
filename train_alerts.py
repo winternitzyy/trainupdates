@@ -1,20 +1,21 @@
 """Send an SMS when c2c or the Suffragette line has problems.
 
-Checks the TfL Unified API for line status, then texts you through Twilio
+Checks the TfL Unified API for line status, then texts you through PureSMS
 when a line's status changes, for example from Good Service to Severe Delays
 and back again. It saves the last status it saw so it does not text you
 about the same problem twice.
 
 Environment variables:
-  TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER, ALERT_TO_NUMBER
-      Required for sending SMS. Separate several recipients with commas.
+  PURESMS_API_KEY, PURESMS_SENDER, ALERT_TO_NUMBER
+      Required for sending SMS. PURESMS_SENDER is a sender set up in your
+      PureSMS dashboard. ALERT_TO_NUMBER is in +44 format; separate several
+      recipients with commas.
   TFL_APP_KEY      Optional TfL API key (higher rate limits).
   TRAIN_LINES      Optional, defaults to "c2c,suffragette".
   STATE_FILE       Optional, defaults to "state.json".
   DRY_RUN          If set to "1", print messages instead of sending them.
 """
 
-import base64
 import json
 import os
 import sys
@@ -22,7 +23,7 @@ import urllib.parse
 import urllib.request
 
 TFL_URL = "https://api.tfl.gov.uk/Line/{lines}/Status"
-TWILIO_URL = "https://api.twilio.com/2010-04-01/Accounts/{sid}/Messages.json"
+PURESMS_URL = "https://connect-api.divergent.cloud/sms/send"
 GOOD_SERVICE = 10
 
 
@@ -80,11 +81,12 @@ def format_problem(status, limit=600):
     return text if len(text) <= limit else text[: limit - 3] + "..."
 
 
-def send_sms(body, sid, token, from_number, to_number):
-    data = urllib.parse.urlencode({"From": from_number, "To": to_number, "Body": body}).encode()
-    req = urllib.request.Request(TWILIO_URL.format(sid=sid), data=data, method="POST")
-    auth = base64.b64encode(f"{sid}:{token}".encode()).decode()
-    req.add_header("Authorization", f"Basic {auth}")
+def send_sms(body, api_key, sender, to_number):
+    data = json.dumps({"sender": sender, "recipient": to_number, "content": body}).encode()
+    req = urllib.request.Request(PURESMS_URL, data=data, method="POST")
+    req.add_header("X-Api-Key", api_key)
+    req.add_header("Content-Type", "application/json")
+    req.add_header("Accept", "application/json")
     with urllib.request.urlopen(req, timeout=30) as resp:
         resp.read()
 
@@ -119,13 +121,12 @@ def main():
             for m in messages:
                 print(f"[DRY RUN] SMS: {m}")
         else:
-            sid = os.environ["TWILIO_ACCOUNT_SID"]
-            token = os.environ["TWILIO_AUTH_TOKEN"]
-            from_number = os.environ["TWILIO_FROM_NUMBER"]
+            api_key = os.environ["PURESMS_API_KEY"]
+            sender = os.environ["PURESMS_SENDER"]
             recipients = [n.strip() for n in os.environ["ALERT_TO_NUMBER"].split(",") if n.strip()]
             for m in messages:
                 for to in recipients:
-                    send_sms(m, sid, token, from_number, to)
+                    send_sms(m, api_key, sender, to)
                 print(f"Sent SMS: {m}")
     else:
         print("No changes, no SMS sent.")
