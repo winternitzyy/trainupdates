@@ -14,6 +14,7 @@ Environment variables:
   TRAIN_LINES      Optional, defaults to "c2c,suffragette".
   STATE_FILE       Optional, defaults to "state.json".
   DRY_RUN          If set to "1", print messages instead of sending them.
+  TEST_SMS         If set to "1", also send a test SMS with the current status.
 """
 
 import json
@@ -129,6 +130,10 @@ def main():
 
     for line_id, s in current.items():
         print(f"{s['name']}: {s['summary']}")
+
+    if os.environ.get("TEST_SMS") == "1":
+        status = "; ".join(f"{v['name']}: {v['summary']}" for v in current.values())
+        messages = [f"Test from train alerts. {status}"] + messages
 
     if messages:
         if dry_run:

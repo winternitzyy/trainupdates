@@ -17,7 +17,7 @@ Line statuses come from the [TfL Unified API](https://api.tfl.gov.uk/). SMS mess
    | `ALERT_TO_NUMBER` | `+447700900123` (separate several numbers with commas) |
    | `TFL_APP_KEY` | optional |
 
-4. Merge to the default branch. Scheduled workflows only run there. To test straight away, open **Actions → Train alerts → Run workflow**.
+4. Merge to the default branch. Scheduled workflows only run there. To test straight away, open **Actions → Train alerts → Run workflow**, tick **Send a test SMS**, and run it.
 
 ## Example messages
 
