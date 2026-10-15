@@ -20,12 +20,12 @@ Environment variables:
   CHECK_SECONDS    Seconds between checks when looping (default 60).
   QUIET_HOURS      UK-time window with no checks, e.g. "00:00-05:00" (default).
                    Set to "" to check around the clock.
-  SHABBAT          No texts from candle lighting in Westcliff-on-Sea until
-                   Shabbat ends; then one text if a line is still disrupted.
-                   On by default; set to "0" to turn off.
+  SHABBAT          No texts over Shabbat and Yom Tov in Westcliff-on-Sea, from
+                   candle lighting until the end; then one text if a line is
+                   still disrupted. On by default; set to "0" to turn off.
   SHABBAT_CANDLE_MINUTES  Minutes before sunset for candle lighting (default 18).
-  SHABBAT_END_DEGREES     Sun's depth below the horizon when Shabbat ends (default 8.5).
-  SHABBAT_MARGIN_MINUTES  Extra minutes added before and after Shabbat (default 5).
+  SHABBAT_END_MINUTES     Minutes after sunset when Shabbat/Yom Tov ends (default 72).
+  SHABBAT_MARGIN_MINUTES  Extra minutes added before and after (default 5).
 """
 
 import json
@@ -221,13 +221,13 @@ def send_all(messages, dry_run):
         print(f"Sent SMS: {SMS_PREFIX}{m}", flush=True)
 
 
-def after_shabbat(lines, dry_run):
-    """First check after Shabbat: one text listing any lines still disrupted."""
+def after_shabbat(lines, label, dry_run):
+    """First check after Shabbat or Yom Tov: one text listing any lines still disrupted."""
     current = fetch_statuses(lines, os.environ.get("TFL_APP_KEY"))
     problems = [format_problem(s, limit=400) for s in current.values() if not s["ok"]]
-    print("After Shabbat: " + ("; ".join(problems) or "all lines Good Service"), flush=True)
+    print(f"After {label}: " + ("; ".join(problems) or "all lines Good Service"), flush=True)
     if problems:
-        send_all(["After Shabbat, still disrupted. " + " ".join(problems)], dry_run)
+        send_all([f"After {label}, still disrupted. " + " ".join(problems)], dry_run)
     return current
 
 
@@ -262,17 +262,18 @@ def main():
 
     shabbat_on = os.environ.get("SHABBAT", "1") != "0"
     candle_minutes = float(os.environ.get("SHABBAT_CANDLE_MINUTES") or 18)
-    end_degrees = float(os.environ.get("SHABBAT_END_DEGREES") or 8.5)
+    end_minutes = float(os.environ.get("SHABBAT_END_MINUTES") or 72)
     margin = float(os.environ.get("SHABBAT_MARGIN_MINUTES") or 5)
 
     state = load_state(state_file)
     deadline = time.monotonic() + run_minutes * 60
     while True:
         now = datetime.now(UK)
-        if shabbat_on and shabbat.in_shabbat(now, candle_minutes, end_degrees, margin):
-            print("Shabbat, not checking.", flush=True)
-            if not state.get("_after_shabbat"):
-                state["_after_shabbat"] = True
+        rest = shabbat_on and shabbat.in_rest_period(now, candle_minutes, end_minutes, margin)
+        if rest:
+            print(f"{rest}, not checking.", flush=True)
+            if state.get("_after_shabbat") != rest:
+                state["_after_shabbat"] = rest
                 save_state(state_file, state)
         elif in_quiet_hours(quiet, now):
             print("Quiet hours, not checking.", flush=True)
@@ -283,8 +284,9 @@ def main():
                     state["_weekly"] = now.strftime("%G-W%V")
                     save_state(state_file, state)
                 markers = {k: v for k, v in state.items() if k.startswith("_")}
-                if markers.pop("_after_shabbat", False):
-                    new_state = after_shabbat(lines, dry_run)
+                label = markers.pop("_after_shabbat", None)
+                if label:
+                    new_state = after_shabbat(lines, label if isinstance(label, str) else "Shabbat", dry_run)
                 else:
                     new_state = check_once(lines, state, dry_run)
                 state = {**new_state, **markers}
