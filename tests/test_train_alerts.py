@@ -34,7 +34,7 @@ class TrainAlertTests(unittest.TestCase):
 
     def test_first_run_with_disruption_alerts(self):
         msgs = build_messages({}, parse_statuses(DELAYED))
-        self.assertEqual(msgs, ["c2c: Severe Delays. C2C: Signal failure at Upminster."])
+        self.assertEqual(msgs, ["c2c: Severe Delays. Signal failure at Upminster."])
 
     def test_disruption_starts(self):
         msgs = build_messages(parse_statuses(GOOD), parse_statuses(DELAYED))
@@ -53,7 +53,7 @@ class TrainAlertTests(unittest.TestCase):
         worse = [tfl_line("c2c", "c2c", 1, "Suspended", "C2C: No service."),
                  tfl_line("suffragette", "Suffragette", 10, "Good Service")]
         msgs = build_messages(parse_statuses(DELAYED), parse_statuses(worse))
-        self.assertEqual(msgs, ["c2c: Suspended. C2C: No service."])
+        self.assertEqual(msgs, ["c2c: Suspended. No service."])
 
     def test_quiet_hours(self):
         at = lambda h, m: datetime(2026, 1, 1, h, m)
@@ -83,6 +83,12 @@ class TrainAlertTests(unittest.TestCase):
         text = format_weekly(datetime(2026, 10, 18).date(), parse_statuses(planned))
         self.assertEqual(text, "Sunday 18 Oct: c2c: Planned Closure. No trains Barking to Upminster. "
                                "Suffragette: running normally, no planned works.")
+
+    def test_line_name_prefix_removed(self):
+        data = [tfl_line("suffragette", "Suffragette", 4, "Part Closure",
+                         "SUFFRAGETTE LINE: Sunday 18 October, no service between Barking and Barking Riverside.")]
+        self.assertEqual(parse_statuses(data)["suffragette"]["reasons"],
+                         ["Sunday 18 October, no service between Barking and Barking Riverside."])
 
 
 if __name__ == "__main__":

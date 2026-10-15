@@ -23,6 +23,7 @@ Environment variables:
 """
 
 import json
+import re
 import os
 import sys
 import time
@@ -37,6 +38,7 @@ TFL_RANGE_URL = "https://api.tfl.gov.uk/Line/{lines}/Status/{start}/to/{end}"
 UK = ZoneInfo("Europe/London")
 PURESMS_URL = "https://connect-api.divergent.cloud/sms/send"
 GOOD_SERVICE = 10
+SMS_PREFIX = "Train Alerts: "
 USER_AGENT = "trainupdates/1.0 (+https://github.com/winternitzyy/trainupdates)"
 
 
@@ -74,7 +76,7 @@ def parse_statuses(data):
                                if ok or s.get("statusSeverity") != GOOD_SERVICE})
         reasons = []
         for s in statuses:
-            reason = (s.get("reason") or "").strip()
+            reason = strip_line_name((s.get("reason") or "").strip(), line)
             if reason and reason not in reasons:
                 reasons.append(reason)
         result[line["id"]] = {
@@ -84,6 +86,14 @@ def parse_statuses(data):
             "reasons": reasons,
         }
     return result
+
+
+def strip_line_name(reason, line):
+    """Drop TfL's leading "SUFFRAGETTE LINE:" or "C2C:" since the text already names the line."""
+    for name in {line.get("name", ""), line["id"]}:
+        if name:
+            reason = re.sub(rf"^{re.escape(name)}(\s+line)?\s*:\s*", "", reason, flags=re.I)
+    return reason
 
 
 def build_messages(previous, current):
@@ -173,15 +183,15 @@ def send_weekly(lines, day, dry_run):
 def send_all(messages, dry_run):
     if dry_run:
         for m in messages:
-            print(f"[DRY RUN] SMS: {m}", flush=True)
+            print(f"[DRY RUN] SMS: {SMS_PREFIX}{m}", flush=True)
         return
     api_key = os.environ["PURESMS_API_KEY"]
     sender = os.environ["PURESMS_SENDER"]
     recipients = [n.strip() for n in os.environ["ALERT_TO_NUMBER"].split(",") if n.strip()]
     for m in messages:
         for to in recipients:
-            send_sms(m, api_key, sender, to)
-        print(f"Sent SMS: {m}", flush=True)
+            send_sms(SMS_PREFIX + m, api_key, sender, to)
+        print(f"Sent SMS: {SMS_PREFIX}{m}", flush=True)
 
 
 def check_once(lines, previous, dry_run):
@@ -210,7 +220,7 @@ def main():
     if os.environ.get("TEST_SMS") == "1":
         current = fetch_statuses(lines, os.environ.get("TFL_APP_KEY"))
         status = "; ".join(f"{v['name']}: {v['summary']}" for v in current.values())
-        send_all([f"Test from train alerts. {status}"], dry_run)
+        send_all([f"Test message. {status}"], dry_run)
         return 0
 
     state = load_state(state_file)
