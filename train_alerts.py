@@ -16,6 +16,8 @@ Environment variables:
   DRY_RUN          If set to "1", print messages instead of sending them.
   TEST_SMS         If set to "1", only send a test SMS with the current status.
   WEEKLY_PREVIEW   If set to "1", only send the coming weekend's preview now.
+  TEST_AFTER_SHABBAT  If set to "1", only send a test of the after-Shabbat text,
+                   using an example disruption if every line is running normally.
   RUN_MINUTES      Keep checking for this many minutes (default 0 = check once).
   CHECK_SECONDS    Seconds between checks when looping (default 60).
   QUIET_HOURS      UK-time window with no checks, e.g. "00:00-05:00" (default).
@@ -252,6 +254,14 @@ def main():
 
     if os.environ.get("WEEKLY_PREVIEW") == "1":
         send_weekly(lines, coming_weekend(datetime.now(UK)), dry_run)
+        return 0
+
+    if os.environ.get("TEST_AFTER_SHABBAT") == "1":
+        current = fetch_statuses(lines, os.environ.get("TFL_APP_KEY"))
+        problems = [format_problem(s, limit=400) for s in current.values() if not s["ok"]]
+        if not problems:
+            problems = ["c2c: Severe Delays. Signal failure at Upminster. (example)"]
+        send_all(["TEST. After Shabbat, still disrupted. " + " ".join(problems)], dry_run)
         return 0
 
     if os.environ.get("TEST_SMS") == "1":

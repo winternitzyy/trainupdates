@@ -34,7 +34,7 @@ Train Alerts: After Shabbat, still disrupted. c2c: Severe Delays. Signal failure
    | `TFL_APP_KEY` | optional |
 
 4. Make sure this is on the default branch, then open **Actions → Train alerts → Run workflow** to start checking.
-5. To check SMS works, open **Actions → Send test SMS → Run workflow**. Pick **Current status** or **Weekend preview**.
+5. To check SMS works, open **Actions → Send test SMS → Run workflow**. Pick **Current status**, **Weekend preview** or **After Shabbat**.
 
 ## Example messages
 

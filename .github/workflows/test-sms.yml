@@ -9,6 +9,7 @@ on:
         options:
           - Current status
           - Weekend preview
+          - After Shabbat
         default: Current status
 
 jobs:
@@ -29,4 +30,5 @@ jobs:
           TFL_APP_KEY: ${{ secrets.TFL_APP_KEY }}
           TEST_SMS: ${{ inputs.message == 'Current status' && '1' || '' }}
           WEEKLY_PREVIEW: ${{ inputs.message == 'Weekend preview' && '1' || '' }}
+          TEST_AFTER_SHABBAT: ${{ inputs.message == 'After Shabbat' && '1' || '' }}
         run: python train_alerts.py
