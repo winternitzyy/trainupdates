@@ -6,10 +6,12 @@ Line statuses come from the [TfL Unified API](https://api.tfl.gov.uk/). SMS mess
 
 The repo needs to be public: Actions minutes are free and unlimited for public repos, but running all day would use up a private repo's monthly allowance. Your secrets stay private either way.
 
-Every Thursday from 18:00 UK time you also get one text previewing the coming Sunday: whether each line is running normally or has planned works, for example:
+Every Thursday from 18:00 UK time you also get one text previewing the coming weekend: whether each line is running normally or has planned works on Saturday and Sunday, for example:
 
 ```
-Sunday 18 Oct: c2c: Planned Closure. No trains between Barking and Upminster. Suffragette: running normally, no planned works.
+Train Alerts: Train status for the coming weekend.
+Sat 17 Oct: c2c: running normally, no planned works. Suffragette: running normally, no planned works.
+Sun 18 Oct: c2c: running normally, no planned works. Suffragette: Part Closure. No service between Barking and Barking Riverside, please use local London Buses services.
 ```
 
 ## Setup
@@ -26,7 +28,7 @@ Sunday 18 Oct: c2c: Planned Closure. No trains between Barking and Upminster. Su
    | `TFL_APP_KEY` | optional |
 
 4. Make sure this is on the default branch, then open **Actions → Train alerts → Run workflow** to start checking.
-5. To check SMS works, open **Actions → Send test SMS → Run workflow**. Pick **Current status** or **Sunday preview**.
+5. To check SMS works, open **Actions → Send test SMS → Run workflow**. Pick **Current status** or **Weekend preview**.
 
 ## Example messages
 

@@ -8,7 +8,7 @@ on:
         type: choice
         options:
           - Current status
-          - Sunday preview
+          - Weekend preview
         default: Current status
 
 jobs:
@@ -28,5 +28,5 @@ jobs:
           ALERT_TO_NUMBER: ${{ secrets.ALERT_TO_NUMBER }}
           TFL_APP_KEY: ${{ secrets.TFL_APP_KEY }}
           TEST_SMS: ${{ inputs.message == 'Current status' && '1' || '' }}
-          WEEKLY_PREVIEW: ${{ inputs.message == 'Sunday preview' && '1' || '' }}
+          WEEKLY_PREVIEW: ${{ inputs.message == 'Weekend preview' && '1' || '' }}
         run: python train_alerts.py

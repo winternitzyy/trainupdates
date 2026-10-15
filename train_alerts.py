@@ -15,7 +15,7 @@ Environment variables:
   STATE_FILE       Optional, defaults to "state.json".
   DRY_RUN          If set to "1", print messages instead of sending them.
   TEST_SMS         If set to "1", only send a test SMS with the current status.
-  WEEKLY_PREVIEW   If set to "1", only send the coming Sunday's preview now.
+  WEEKLY_PREVIEW   If set to "1", only send the coming weekend's preview now.
   RUN_MINUTES      Keep checking for this many minutes (default 0 = check once).
   CHECK_SECONDS    Seconds between checks when looping (default 60).
   QUIET_HOURS      UK-time window with no checks, e.g. "00:00-05:00" (default).
@@ -155,12 +155,14 @@ def in_quiet_hours(window, now=None):
     return start <= t < end if start < end else t >= start or t < end
 
 
-def next_sunday(now):
-    return (now + timedelta(days=(6 - now.weekday()) % 7 or 7)).date()
+def coming_weekend(now):
+    """Saturday and Sunday of the coming weekend."""
+    saturday = (now + timedelta(days=(5 - now.weekday()) % 7 or 7)).date()
+    return [saturday, saturday + timedelta(days=1)]
 
 
 def weekly_due(now, last_sent):
-    """True from Thursday 18:00 UK time until the preview for that week is sent."""
+    """True from Thursday 18:00 UK time until that week's weekend preview is sent."""
     week = now.strftime("%G-W%V")
     return now.weekday() == 3 and now.hour >= 18 and last_sent != week
 
@@ -176,7 +178,7 @@ def strip_leading_date(reason):
     return rest[:1].upper() + rest[1:] if rest else reason
 
 
-def format_weekly(day, statuses):
+def format_day(day, statuses):
     parts = []
     for s in statuses.values():
         if s["ok"]:
@@ -184,12 +186,17 @@ def format_weekly(day, statuses):
         else:
             s = dict(s, reasons=[strip_leading_date(r) for r in s["reasons"]])
             parts.append(format_problem(s, limit=400))
-    return f"Train status for the coming Sunday {day:%-d %b}: " + " ".join(parts)
+    return f"{day:%a %-d %b}: " + " ".join(parts)
 
 
-def send_weekly(lines, day, dry_run):
-    statuses = fetch_statuses(lines, os.environ.get("TFL_APP_KEY"), day=day)
-    send_all([format_weekly(day, statuses)], dry_run)
+def format_weekly(days_statuses):
+    return "Train status for the coming weekend.\n" + "\n".join(
+        format_day(day, statuses) for day, statuses in days_statuses)
+
+
+def send_weekly(lines, days, dry_run):
+    key = os.environ.get("TFL_APP_KEY")
+    send_all([format_weekly([(d, fetch_statuses(lines, key, day=d)) for d in days])], dry_run)
 
 
 def send_all(messages, dry_run):
@@ -226,7 +233,7 @@ def main():
     quiet = os.environ.get("QUIET_HOURS", "00:00-05:00")
 
     if os.environ.get("WEEKLY_PREVIEW") == "1":
-        send_weekly(lines, next_sunday(datetime.now(UK)), dry_run)
+        send_weekly(lines, coming_weekend(datetime.now(UK)), dry_run)
         return 0
 
     if os.environ.get("TEST_SMS") == "1":
@@ -244,7 +251,7 @@ def main():
             try:
                 now = datetime.now(UK)
                 if weekly_due(now, state.get("_weekly")):
-                    send_weekly(lines, next_sunday(now), dry_run)
+                    send_weekly(lines, coming_weekend(now), dry_run)
                     state["_weekly"] = now.strftime("%G-W%V")
                     save_state(state_file, state)
                 weekly = state.get("_weekly")
