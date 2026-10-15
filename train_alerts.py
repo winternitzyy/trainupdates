@@ -20,6 +20,11 @@ Environment variables:
   CHECK_SECONDS    Seconds between checks when looping (default 60).
   QUIET_HOURS      UK-time window with no checks, e.g. "00:00-05:00" (default).
                    Set to "" to check around the clock.
+  SHABBAT          No texts from candle lighting in Westcliff-on-Sea until
+                   Shabbat ends; then one text if a line is still disrupted.
+                   On by default; set to "0" to turn off.
+  SHABBAT_CANDLE_MINUTES  Minutes before sunset for candle lighting (default 18).
+  SHABBAT_END_DEGREES     Sun's depth below the horizon when Shabbat ends (default 8.5).
 """
 
 import json
@@ -32,6 +37,8 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
+
+import shabbat
 
 TFL_URL = "https://api.tfl.gov.uk/Line/{lines}/Status"
 TFL_RANGE_URL = "https://api.tfl.gov.uk/Line/{lines}/Status/{start}/to/{end}"
@@ -213,6 +220,16 @@ def send_all(messages, dry_run):
         print(f"Sent SMS: {SMS_PREFIX}{m}", flush=True)
 
 
+def after_shabbat(lines, dry_run):
+    """First check after Shabbat: one text listing any lines still disrupted."""
+    current = fetch_statuses(lines, os.environ.get("TFL_APP_KEY"))
+    problems = [format_problem(s, limit=400) for s in current.values() if not s["ok"]]
+    print("After Shabbat: " + ("; ".join(problems) or "all lines Good Service"), flush=True)
+    if problems:
+        send_all(["After Shabbat, still disrupted. " + " ".join(problems)], dry_run)
+    return current
+
+
 def check_once(lines, previous, dry_run):
     """Check the lines, text any changes, and return the state to keep."""
     current = fetch_statuses(lines, os.environ.get("TFL_APP_KEY"))
@@ -242,21 +259,33 @@ def main():
         send_all([f"Test message. {status}"], dry_run)
         return 0
 
+    shabbat_on = os.environ.get("SHABBAT", "1") != "0"
+    candle_minutes = float(os.environ.get("SHABBAT_CANDLE_MINUTES") or 18)
+    end_degrees = float(os.environ.get("SHABBAT_END_DEGREES") or 8.5)
+
     state = load_state(state_file)
     deadline = time.monotonic() + run_minutes * 60
     while True:
-        if in_quiet_hours(quiet):
+        now = datetime.now(UK)
+        if shabbat_on and shabbat.in_shabbat(now, candle_minutes, end_degrees):
+            print("Shabbat, not checking.", flush=True)
+            if not state.get("_after_shabbat"):
+                state["_after_shabbat"] = True
+                save_state(state_file, state)
+        elif in_quiet_hours(quiet, now):
             print("Quiet hours, not checking.", flush=True)
         else:
             try:
-                now = datetime.now(UK)
                 if weekly_due(now, state.get("_weekly")):
                     send_weekly(lines, coming_weekend(now), dry_run)
                     state["_weekly"] = now.strftime("%G-W%V")
                     save_state(state_file, state)
-                weekly = state.get("_weekly")
-                state = check_once(lines, state, dry_run)
-                state["_weekly"] = weekly
+                markers = {k: v for k, v in state.items() if k.startswith("_")}
+                if markers.pop("_after_shabbat", False):
+                    new_state = after_shabbat(lines, dry_run)
+                else:
+                    new_state = check_once(lines, state, dry_run)
+                state = {**new_state, **markers}
                 save_state(state_file, state)
             except (urllib.error.URLError, OSError, ValueError) as e:
                 # Keep the old state so a failed SMS is retried on the next check.
