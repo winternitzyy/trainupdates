@@ -94,8 +94,44 @@ def parse_statuses(data):
             "ok": ok,
             "summary": ", ".join(descriptions) or "Unknown",
             "reasons": reasons,
+            "since": None if ok else disruption_start(statuses),
         }
     return result
+
+
+def _parse_tfl_time(value):
+    try:
+        t = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except (AttributeError, ValueError):
+        return None
+    return t if t.tzinfo else t.replace(tzinfo=ZoneInfo("UTC"))
+
+
+def disruption_start(statuses):
+    """Earliest time TfL says a non-Good-Service status began, as ISO text, or None."""
+    starts = []
+    for s in statuses:
+        if s.get("statusSeverity") == GOOD_SERVICE:
+            continue
+        times = [_parse_tfl_time(p.get("fromDate")) for p in s.get("validityPeriods") or []]
+        times.append(_parse_tfl_time((s.get("disruption") or {}).get("created")))
+        times.append(_parse_tfl_time(s.get("created")))
+        starts += [t for t in times if t and t.year > 2000]
+    return min(starts).isoformat() if starts else None
+
+
+def format_still_disrupted(status, limit=400):
+    """"c2c: Severe Delays since Sat 14:32. Signal failure at Upminster. Still disrupted." """
+    text = f"{status['name']}: {status['summary']}"
+    if status.get("since"):
+        since = datetime.fromisoformat(status["since"]).astimezone(UK)
+        text += f" since {since:%a %H:%M}"
+    text += "."
+    if status["reasons"]:
+        text += " " + " ".join(status["reasons"])
+    if len(text) > limit:
+        text = text[: limit - 3] + "..."
+    return text + " Still disrupted."
 
 
 def strip_line_name(reason, line):
@@ -226,10 +262,10 @@ def send_all(messages, dry_run):
 def after_shabbat(lines, label, dry_run):
     """First check after Shabbat or Yom Tov: one text listing any lines still disrupted."""
     current = fetch_statuses(lines, os.environ.get("TFL_APP_KEY"))
-    problems = [format_problem(s, limit=400) for s in current.values() if not s["ok"]]
+    problems = [format_still_disrupted(s) for s in current.values() if not s["ok"]]
     print(f"After {label}: " + ("; ".join(problems) or "all lines Good Service"), flush=True)
     if problems:
-        send_all([f"After {label}, still disrupted. " + " ".join(problems)], dry_run)
+        send_all([" ".join(problems)], dry_run)
     return current
 
 
@@ -258,10 +294,11 @@ def main():
 
     if os.environ.get("TEST_AFTER_SHABBAT") == "1":
         current = fetch_statuses(lines, os.environ.get("TFL_APP_KEY"))
-        problems = [format_problem(s, limit=400) for s in current.values() if not s["ok"]]
+        problems = [format_still_disrupted(s) for s in current.values() if not s["ok"]]
         if not problems:
-            problems = ["c2c: Severe Delays. Signal failure at Upminster. (example)"]
-        send_all(["TEST. After Shabbat, still disrupted. " + " ".join(problems)], dry_run)
+            problems = ["c2c: Severe Delays since Sat 14:32. Signal failure at Upminster. "
+                        "Still disrupted. (example)"]
+        send_all(["TEST. " + " ".join(problems)], dry_run)
         return 0
 
     if os.environ.get("TEST_SMS") == "1":

@@ -6,7 +6,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from datetime import datetime
 
-from train_alerts import (build_messages, coming_weekend, format_weekly, in_quiet_hours,
+from train_alerts import (build_messages, coming_weekend, format_still_disrupted, format_weekly,
+                          in_quiet_hours,
                           parse_statuses, weekly_due)
 
 
@@ -97,6 +98,20 @@ class TrainAlertTests(unittest.TestCase):
                          "SUFFRAGETTE LINE: Sunday 18 October, no service between Barking and Barking Riverside.")]
         self.assertEqual(parse_statuses(data)["suffragette"]["reasons"],
                          ["Sunday 18 October, no service between Barking and Barking Riverside."])
+
+
+    def test_still_disrupted_shows_start_time(self):
+        data = [{"id": "c2c", "name": "c2c", "lineStatuses": [{
+            "statusSeverity": 6, "statusSeverityDescription": "Severe Delays",
+            "reason": "C2C: Signal failure at Upminster.",
+            "validityPeriods": [{"fromDate": "2026-10-17T13:32:00Z", "toDate": "2026-10-17T23:00:00Z"}]}]}]
+        text = format_still_disrupted(parse_statuses(data)["c2c"])
+        self.assertEqual(text, "c2c: Severe Delays since Sat 14:32. Signal failure at Upminster. "
+                               "Still disrupted.")
+
+    def test_still_disrupted_without_start_time(self):
+        text = format_still_disrupted(parse_statuses(DELAYED)["c2c"])
+        self.assertEqual(text, "c2c: Severe Delays. Signal failure at Upminster. Still disrupted.")
 
 
 if __name__ == "__main__":
