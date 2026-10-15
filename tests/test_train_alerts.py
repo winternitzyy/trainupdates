@@ -6,7 +6,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from datetime import datetime
 
-from train_alerts import build_messages, in_quiet_hours, parse_statuses
+from train_alerts import (build_messages, format_weekly, in_quiet_hours, next_sunday,
+                          parse_statuses, weekly_due)
 
 
 def tfl_line(line_id, name, severity, description, reason=None):
@@ -61,6 +62,27 @@ class TrainAlertTests(unittest.TestCase):
         self.assertTrue(in_quiet_hours("23:30-05:00", at(23, 45)))
         self.assertFalse(in_quiet_hours("23:30-05:00", at(12, 0)))
         self.assertFalse(in_quiet_hours("", at(3, 0)))
+
+    def test_next_sunday(self):
+        self.assertEqual(str(next_sunday(datetime(2026, 10, 15, 18, 0))), "2026-10-18")  # Thursday
+        self.assertEqual(str(next_sunday(datetime(2026, 10, 18, 9, 0))), "2026-10-25")  # Sunday
+
+    def test_weekly_due_only_thursday_evening_once(self):
+        thu = datetime(2026, 10, 15, 18, 0)
+        self.assertTrue(weekly_due(thu, None))
+        self.assertFalse(weekly_due(thu, thu.strftime("%G-W%V")))
+        self.assertFalse(weekly_due(datetime(2026, 10, 15, 17, 59), None))
+        self.assertFalse(weekly_due(datetime(2026, 10, 16, 18, 0), None))
+
+    def test_format_weekly(self):
+        planned = [{"id": "c2c", "name": "c2c", "lineStatuses": [
+                       {"statusSeverity": 10, "statusSeverityDescription": "Good Service"},
+                       {"statusSeverity": 4, "statusSeverityDescription": "Planned Closure",
+                        "reason": "No trains Barking to Upminster."}]},
+                   tfl_line("suffragette", "Suffragette", 10, "Good Service")]
+        text = format_weekly(datetime(2026, 10, 18).date(), parse_statuses(planned))
+        self.assertEqual(text, "Sunday 18 Oct: c2c: Planned Closure. No trains Barking to Upminster. "
+                               "Suffragette: running normally, no planned works.")
 
 
 if __name__ == "__main__":

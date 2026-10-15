@@ -6,6 +6,12 @@ Line statuses come from the [TfL Unified API](https://api.tfl.gov.uk/). SMS mess
 
 The repo needs to be public: Actions minutes are free and unlimited for public repos, but running all day would use up a private repo's monthly allowance. Your secrets stay private either way.
 
+Every Thursday from 18:00 UK time you also get one text previewing the coming Sunday: whether each line is running normally or has planned works, for example:
+
+```
+Sunday 18 Oct: c2c: Planned Closure. No trains between Barking and Upminster. Suffragette: running normally, no planned works.
+```
+
 ## Setup
 
 1. In your PureSMS dashboard, set up a sender (for example `TrainAlert`, up to 11 letters) and create an API key.
@@ -20,7 +26,7 @@ The repo needs to be public: Actions minutes are free and unlimited for public r
    | `TFL_APP_KEY` | optional |
 
 4. Make sure this is on the default branch, then open **Actions → Train alerts → Run workflow** to start checking.
-5. To check SMS works, open **Actions → Send test SMS → Run workflow**.
+5. To check SMS works, open **Actions → Send test SMS → Run workflow**. Pick **Current status** or **Sunday preview**.
 
 ## Example messages
 
