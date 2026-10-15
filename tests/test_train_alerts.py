@@ -81,8 +81,18 @@ class TrainAlertTests(unittest.TestCase):
                         "reason": "No trains Barking to Upminster."}]},
                    tfl_line("suffragette", "Suffragette", 10, "Good Service")]
         text = format_weekly(datetime(2026, 10, 18).date(), parse_statuses(planned))
-        self.assertEqual(text, "Sunday 18 Oct: c2c: Planned Closure. No trains Barking to Upminster. "
+        self.assertEqual(text, "Train status for the coming Sunday 18 Oct: c2c: Planned Closure. "
+                               "No trains Barking to Upminster. "
                                "Suffragette: running normally, no planned works.")
+
+    def test_weekly_drops_repeated_date(self):
+        data = [tfl_line("suffragette", "Suffragette", 4, "Part Closure",
+                         "SUFFRAGETTE LINE: Sunday 18 October, no service between Barking and "
+                         "Barking Riverside, please use local London Buses services.")]
+        text = format_weekly(datetime(2026, 10, 18).date(), parse_statuses(data))
+        self.assertEqual(text, "Train status for the coming Sunday 18 Oct: Suffragette: Part Closure. "
+                               "No service between Barking and Barking Riverside, "
+                               "please use local London Buses services.")
 
     def test_line_name_prefix_removed(self):
         data = [tfl_line("suffragette", "Suffragette", 4, "Part Closure",

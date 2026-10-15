@@ -165,14 +165,26 @@ def weekly_due(now, last_sent):
     return now.weekday() == 3 and now.hour >= 18 and last_sent != week
 
 
+LEADING_DATE = re.compile(
+    r"^(?:Mon|Tues|Wednes|Thurs|Fri|Satur|Sun)day\s+\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+(?:\s+\d{4})?\s*[,:.-]?\s*",
+    re.I)
+
+
+def strip_leading_date(reason):
+    """Drop a leading "Sunday 18 October," since the message already says which day."""
+    rest = LEADING_DATE.sub("", reason, count=1)
+    return rest[:1].upper() + rest[1:] if rest else reason
+
+
 def format_weekly(day, statuses):
     parts = []
     for s in statuses.values():
         if s["ok"]:
             parts.append(f"{s['name']}: running normally, no planned works.")
         else:
+            s = dict(s, reasons=[strip_leading_date(r) for r in s["reasons"]])
             parts.append(format_problem(s, limit=400))
-    return f"Sunday {day:%-d %b}: " + " ".join(parts)
+    return f"Train status for the coming Sunday {day:%-d %b}: " + " ".join(parts)
 
 
 def send_weekly(lines, day, dry_run):
