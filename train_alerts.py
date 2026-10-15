@@ -19,20 +19,33 @@ Environment variables:
 import json
 import os
 import sys
+import urllib.error
 import urllib.parse
 import urllib.request
 
 TFL_URL = "https://api.tfl.gov.uk/Line/{lines}/Status"
 PURESMS_URL = "https://connect-api.divergent.cloud/sms/send"
 GOOD_SERVICE = 10
+USER_AGENT = "trainupdates/1.0 (+https://github.com/winternitzyy/trainupdates)"
 
 
 def fetch_statuses(lines, app_key=None):
     url = TFL_URL.format(lines=",".join(lines))
     if app_key:
         url += "?" + urllib.parse.urlencode({"app_key": app_key})
-    with urllib.request.urlopen(url, timeout=30) as resp:
+    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/json"})
+    with open_url(req) as resp:
         return parse_statuses(json.load(resp))
+
+
+def open_url(req):
+    """urlopen that prints the response body on HTTP errors, to make failures readable."""
+    try:
+        return urllib.request.urlopen(req, timeout=30)
+    except urllib.error.HTTPError as e:
+        body = e.read().decode(errors="replace")[:500]
+        print(f"HTTP {e.code} from {req.full_url.split('?')[0]}: {body}", file=sys.stderr)
+        raise
 
 
 def parse_statuses(data):
@@ -87,7 +100,8 @@ def send_sms(body, api_key, sender, to_number):
     req.add_header("X-Api-Key", api_key)
     req.add_header("Content-Type", "application/json")
     req.add_header("Accept", "application/json")
-    with urllib.request.urlopen(req, timeout=30) as resp:
+    req.add_header("User-Agent", USER_AGENT)
+    with open_url(req) as resp:
         resp.read()
 
 
