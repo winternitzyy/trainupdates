@@ -9,6 +9,8 @@ sys.path.insert(0, ".")
 from shabbat import LATITUDE, LONGITUDE, is_rest_day, rest_period, yom_tov
 
 YEARS = range(2026, 2037)
+# Differences must stay inside the 5-minute margin that in_rest_period adds.
+TOLERANCE_MINUTES = 4
 worst = 0
 problems = []
 for year in YEARS:
@@ -40,7 +42,7 @@ for year in YEARS:
             continue
         diff = (ours - when).total_seconds() / 60
         worst = max(worst, abs(diff))
-        if abs(diff) > 3:
+        if abs(diff) > TOLERANCE_MINUTES:
             problems.append(f"{i['category']} {day}: hebcal {when:%H:%M} ours {ours.astimezone(when.tzinfo):%H:%M}")
     print(f"{year}: {len(hebcal_yt)} Yom Tov days checked")
 

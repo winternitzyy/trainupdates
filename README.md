@@ -14,7 +14,7 @@ Sat 17 Oct: c2c: running normally, no planned works. Suffragette: running normal
 Sun 18 Oct: c2c: running normally, no planned works. Suffragette: Part Closure. No service between Barking and Barking Riverside, please use local London Buses services.
 ```
 
-Over Shabbat no texts are sent. The pause starts at candle lighting in Westcliff-on-Sea (18 minutes before sunset on Friday) and ends when Shabbat ends (nightfall on Saturday, sun 8.5° below the horizon), with 5 extra minutes either side. These are Hebcal's standard times; `python scripts/verify_shabbat.py` compares them with Hebcal. When Shabbat ends you get one text only if a line is still disrupted:
+Over Shabbat and Yom Tov no texts are sent. The pause starts at candle lighting in Westcliff-on-Sea (18 minutes before sunset the evening before) and ends 72 minutes after sunset on the last day (Rabbeinu Tam), with 5 extra minutes either side. Yom Tov follows the diaspora calendar (two-day festivals), and back-to-back Yom Tov and Shabbat days are treated as one pause. `python scripts/verify_shabbat.py` checks the dates and times against Hebcal. When it ends you get one text only if a line is still disrupted:
 
 ```
 Train Alerts: After Shabbat, still disrupted. c2c: Severe Delays. Signal failure at Upminster.
