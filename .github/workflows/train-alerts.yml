@@ -1,23 +1,25 @@
 name: Train alerts
 
+# One run checks the lines every minute for about 5.5 hours, then starts the
+# next run itself, so checking never stops. The schedule below is only a
+# backup that restarts the chain if a run ever fails.
 on:
   schedule:
-    # Every 10 minutes, 05:00-23:59 UTC. GitHub may delay scheduled runs by a few minutes.
-    - cron: "*/10 5-23 * * *"
+    - cron: "17 */2 * * *"
   workflow_dispatch:
-    inputs:
-      test_sms:
-        description: "Send a test SMS with the current status"
-        type: boolean
-        default: false
 
 concurrency:
   group: train-alerts
   cancel-in-progress: false
 
+permissions:
+  contents: read
+  actions: write
+
 jobs:
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v4
 
@@ -33,21 +35,29 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: state.json
-          key: train-state-${{ github.run_id }}
+          key: train-state-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: train-state-
 
-      - name: Check lines and send SMS
+      - name: Check lines every minute and send SMS
         env:
           PURESMS_API_KEY: ${{ secrets.PURESMS_API_KEY }}
           PURESMS_SENDER: ${{ secrets.PURESMS_SENDER }}
           ALERT_TO_NUMBER: ${{ secrets.ALERT_TO_NUMBER }}
           TFL_APP_KEY: ${{ secrets.TFL_APP_KEY }}
-          TEST_SMS: ${{ inputs.test_sms && '1' || '' }}
+          RUN_MINUTES: "330"
+          CHECK_SECONDS: "60"
+          QUIET_HOURS: "00:00-05:00"
         run: python train_alerts.py
 
       - name: Save status
-        if: success()
+        if: always()
         uses: actions/cache/save@v4
         with:
           path: state.json
-          key: train-state-${{ github.run_id }}
+          key: train-state-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Start the next run
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run train-alerts.yml --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME"

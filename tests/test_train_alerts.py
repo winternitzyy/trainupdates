@@ -4,7 +4,9 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from train_alerts import build_messages, parse_statuses
+from datetime import datetime
+
+from train_alerts import build_messages, in_quiet_hours, parse_statuses
 
 
 def tfl_line(line_id, name, severity, description, reason=None):
@@ -51,6 +53,14 @@ class TrainAlertTests(unittest.TestCase):
                  tfl_line("suffragette", "Suffragette", 10, "Good Service")]
         msgs = build_messages(parse_statuses(DELAYED), parse_statuses(worse))
         self.assertEqual(msgs, ["c2c: Suspended. C2C: No service."])
+
+    def test_quiet_hours(self):
+        at = lambda h, m: datetime(2026, 1, 1, h, m)
+        self.assertTrue(in_quiet_hours("00:00-05:00", at(3, 0)))
+        self.assertFalse(in_quiet_hours("00:00-05:00", at(5, 0)))
+        self.assertTrue(in_quiet_hours("23:30-05:00", at(23, 45)))
+        self.assertFalse(in_quiet_hours("23:30-05:00", at(12, 0)))
+        self.assertFalse(in_quiet_hours("", at(3, 0)))
 
 
 if __name__ == "__main__":

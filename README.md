@@ -2,7 +2,9 @@
 
 Texts you when **c2c** or the **Suffragette line** (London Overground, Gospel Oak to Barking Riverside) has problems, and again when the line is back to Good Service.
 
-Line statuses come from the [TfL Unified API](https://api.tfl.gov.uk/). SMS messages are sent through [PureSMS](https://www.puresms.co.uk/). A GitHub Actions workflow checks the lines every 10 minutes from 05:00 to midnight UTC.
+Line statuses come from the [TfL Unified API](https://api.tfl.gov.uk/). SMS messages are sent through [PureSMS](https://www.puresms.co.uk/). A GitHub Actions workflow checks the lines every minute, except between midnight and 05:00 UK time. Each run checks for about 5.5 hours and then starts the next run itself. A backup schedule every 2 hours restarts the chain if a run fails.
+
+The repo needs to be public: Actions minutes are free and unlimited for public repos, but running all day would use up a private repo's monthly allowance. Your secrets stay private either way.
 
 ## Setup
 
@@ -17,7 +19,8 @@ Line statuses come from the [TfL Unified API](https://api.tfl.gov.uk/). SMS mess
    | `ALERT_TO_NUMBER` | `+447700900123` (separate several numbers with commas) |
    | `TFL_APP_KEY` | optional |
 
-4. Merge to the default branch. Scheduled workflows only run there. To test straight away, open **Actions → Train alerts → Run workflow**, tick **Send a test SMS**, and run it.
+4. Make sure this is on the default branch, then open **Actions → Train alerts → Run workflow** to start checking.
+5. To check SMS works, open **Actions → Send test SMS → Run workflow**.
 
 ## Example messages
 

@@ -14,15 +14,22 @@ Environment variables:
   TRAIN_LINES      Optional, defaults to "c2c,suffragette".
   STATE_FILE       Optional, defaults to "state.json".
   DRY_RUN          If set to "1", print messages instead of sending them.
-  TEST_SMS         If set to "1", also send a test SMS with the current status.
+  TEST_SMS         If set to "1", only send a test SMS with the current status.
+  RUN_MINUTES      Keep checking for this many minutes (default 0 = check once).
+  CHECK_SECONDS    Seconds between checks when looping (default 60).
+  QUIET_HOURS      UK-time window with no checks, e.g. "00:00-05:00" (default).
+                   Set to "" to check around the clock.
 """
 
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 TFL_URL = "https://api.tfl.gov.uk/Line/{lines}/Status"
 PURESMS_URL = "https://connect-api.divergent.cloud/sms/send"
@@ -119,38 +126,72 @@ def save_state(path, state):
         json.dump(state, f, indent=2, sort_keys=True)
 
 
+def in_quiet_hours(window, now=None):
+    """True if UK local time is inside window "HH:MM-HH:MM" (may cross midnight)."""
+    if not window:
+        return False
+    now = now or datetime.now(ZoneInfo("Europe/London"))
+    start, end = (datetime.strptime(t.strip(), "%H:%M").time() for t in window.split("-"))
+    t = now.time()
+    return start <= t < end if start < end else t >= start or t < end
+
+
+def send_all(messages, dry_run):
+    if dry_run:
+        for m in messages:
+            print(f"[DRY RUN] SMS: {m}", flush=True)
+        return
+    api_key = os.environ["PURESMS_API_KEY"]
+    sender = os.environ["PURESMS_SENDER"]
+    recipients = [n.strip() for n in os.environ["ALERT_TO_NUMBER"].split(",") if n.strip()]
+    for m in messages:
+        for to in recipients:
+            send_sms(m, api_key, sender, to)
+        print(f"Sent SMS: {m}", flush=True)
+
+
+def check_once(lines, previous, dry_run):
+    """Check the lines, text any changes, and return the state to keep."""
+    current = fetch_statuses(lines, os.environ.get("TFL_APP_KEY"))
+    messages = build_messages(previous, current)
+    stamp = datetime.now(ZoneInfo("Europe/London")).strftime("%H:%M")
+    print(f"{stamp} " + "; ".join(f"{s['name']}: {s['summary']}" for s in current.values()), flush=True)
+    if messages:
+        send_all(messages, dry_run)
+    return current
+
+
 def main():
     lines = [l.strip() for l in os.environ.get("TRAIN_LINES", "c2c,suffragette").split(",") if l.strip()]
     state_file = os.environ.get("STATE_FILE", "state.json")
     dry_run = os.environ.get("DRY_RUN") == "1"
-
-    current = fetch_statuses(lines, os.environ.get("TFL_APP_KEY"))
-    previous = load_state(state_file)
-    messages = build_messages(previous, current)
-
-    for line_id, s in current.items():
-        print(f"{s['name']}: {s['summary']}")
+    run_minutes = float(os.environ.get("RUN_MINUTES") or 0)
+    interval = float(os.environ.get("CHECK_SECONDS") or 60)
+    quiet = os.environ.get("QUIET_HOURS", "00:00-05:00")
 
     if os.environ.get("TEST_SMS") == "1":
+        current = fetch_statuses(lines, os.environ.get("TFL_APP_KEY"))
         status = "; ".join(f"{v['name']}: {v['summary']}" for v in current.values())
-        messages = [f"Test from train alerts. {status}"] + messages
+        send_all([f"Test from train alerts. {status}"], dry_run)
+        return 0
 
-    if messages:
-        if dry_run:
-            for m in messages:
-                print(f"[DRY RUN] SMS: {m}")
+    state = load_state(state_file)
+    deadline = time.monotonic() + run_minutes * 60
+    while True:
+        if in_quiet_hours(quiet):
+            print("Quiet hours, not checking.", flush=True)
         else:
-            api_key = os.environ["PURESMS_API_KEY"]
-            sender = os.environ["PURESMS_SENDER"]
-            recipients = [n.strip() for n in os.environ["ALERT_TO_NUMBER"].split(",") if n.strip()]
-            for m in messages:
-                for to in recipients:
-                    send_sms(m, api_key, sender, to)
-                print(f"Sent SMS: {m}")
-    else:
-        print("No changes, no SMS sent.")
-
-    save_state(state_file, current)
+            try:
+                state = check_once(lines, state, dry_run)
+                save_state(state_file, state)
+            except (urllib.error.URLError, OSError, ValueError) as e:
+                # Keep the old state so a failed SMS is retried on the next check.
+                if run_minutes <= 0:
+                    raise
+                print(f"Check failed, will retry: {e}", file=sys.stderr, flush=True)
+        if time.monotonic() + interval >= deadline:
+            break
+        time.sleep(interval)
     return 0
 
 

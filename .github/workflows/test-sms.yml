@@ -1,0 +1,23 @@
+name: Send test SMS
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Send test SMS with the current status
+        env:
+          PURESMS_API_KEY: ${{ secrets.PURESMS_API_KEY }}
+          PURESMS_SENDER: ${{ secrets.PURESMS_SENDER }}
+          ALERT_TO_NUMBER: ${{ secrets.ALERT_TO_NUMBER }}
+          TFL_APP_KEY: ${{ secrets.TFL_APP_KEY }}
+          TEST_SMS: "1"
+        run: python train_alerts.py
