@@ -14,6 +14,12 @@ Sat 17 Oct: c2c: running normally, no planned works. Suffragette: running normal
 Sun 18 Oct: c2c: running normally, no planned works. Suffragette: Part Closure. No service between Barking and Barking Riverside, please use local London Buses services.
 ```
 
+Over Shabbat no texts are sent. The pause starts at candle lighting in Westcliff-on-Sea (18 minutes before sunset on Friday) and ends when Shabbat ends (nightfall on Saturday, sun 8.5° below the horizon), with 5 extra minutes either side. These are Hebcal's standard times; `python scripts/verify_shabbat.py` compares them with Hebcal. When Shabbat ends you get one text only if a line is still disrupted:
+
+```
+Train Alerts: After Shabbat, still disrupted. c2c: Severe Delays. Signal failure at Upminster.
+```
+
 ## Setup
 
 1. In your PureSMS dashboard, set up a sender (for example `TrainAlert`, up to 11 letters) and create an API key.

@@ -25,6 +25,7 @@ Environment variables:
                    On by default; set to "0" to turn off.
   SHABBAT_CANDLE_MINUTES  Minutes before sunset for candle lighting (default 18).
   SHABBAT_END_DEGREES     Sun's depth below the horizon when Shabbat ends (default 8.5).
+  SHABBAT_MARGIN_MINUTES  Extra minutes added before and after Shabbat (default 5).
 """
 
 import json
@@ -262,12 +263,13 @@ def main():
     shabbat_on = os.environ.get("SHABBAT", "1") != "0"
     candle_minutes = float(os.environ.get("SHABBAT_CANDLE_MINUTES") or 18)
     end_degrees = float(os.environ.get("SHABBAT_END_DEGREES") or 8.5)
+    margin = float(os.environ.get("SHABBAT_MARGIN_MINUTES") or 5)
 
     state = load_state(state_file)
     deadline = time.monotonic() + run_minutes * 60
     while True:
         now = datetime.now(UK)
-        if shabbat_on and shabbat.in_shabbat(now, candle_minutes, end_degrees):
+        if shabbat_on and shabbat.in_shabbat(now, candle_minutes, end_degrees, margin):
             print("Shabbat, not checking.", flush=True)
             if not state.get("_after_shabbat"):
                 state["_after_shabbat"] = True

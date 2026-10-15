@@ -3,7 +3,8 @@
 Candle lighting is a set number of minutes before sunset on Friday (18 by
 default). Shabbat ends at nightfall on Saturday, when the sun is a set number
 of degrees below the horizon (8.5 by default). These match Hebcal's defaults.
-The sun calculation is accurate to about a minute.
+The sun calculation is within 3 minutes of Hebcal (see scripts/verify_shabbat.py),
+so in_shabbat adds a safety margin either side, 5 minutes by default.
 """
 
 import math
@@ -44,15 +45,17 @@ def shabbat_times(friday, candle_minutes=18, end_degrees=8.5):
     return start, end
 
 
-def in_shabbat(now, candle_minutes=18, end_degrees=8.5):
-    """True if `now` (timezone-aware) is between candle lighting and the end of Shabbat."""
+def in_shabbat(now, candle_minutes=18, end_degrees=8.5, margin_minutes=5):
+    """True if `now` (timezone-aware) is between candle lighting and the end of Shabbat,
+    widened by `margin_minutes` at both ends."""
     local = now.astimezone(timezone.utc)
     weekday = local.weekday()
     if weekday not in (4, 5):
         return False
     friday = local.date() - timedelta(days=weekday - 4)
     start, end = shabbat_times(friday, candle_minutes, end_degrees)
-    return start <= now < end
+    margin = timedelta(minutes=margin_minutes)
+    return start - margin <= now < end + margin
 
 
 if __name__ == "__main__":
