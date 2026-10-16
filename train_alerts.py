@@ -17,6 +17,9 @@ Texts go out one of two ways:
 
 Environment variables:
   TFL_APP_KEY      Optional TfL API key (higher rate limits).
+  C2C_WEBSITE      Live c2c status comes from c2c's own website (the status
+                   box on c2c-online.co.uk), which is usually first to report
+                   problems. On by default; set to "0" to use TfL only.
   NR_INCIDENTS_KEY Optional Rail Data Marketplace key for National Rail's
                    Knowledgebase Incidents feed. When set, c2c alerts use
                    National Rail's explanation, and the weekend preview takes
@@ -51,6 +54,7 @@ import urllib.request
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
+import c2c_status
 import nr_incidents
 import shabbat
 
@@ -299,6 +303,36 @@ def send_weekly(lines, days, dry_run):
                              for d in days])], dry_run)
 
 
+C2C_KEEP_MINUTES = 15  # how long to trust the last c2c reading if the website is down
+
+
+def apply_c2c_website(current, previous, now=None):
+    """Replace TfL's c2c status with c2c's own. If c2c's website can't be read,
+    keep the last c2c reading for a while so a blip doesn't look like a change."""
+    if "c2c" not in current or os.environ.get("C2C_WEBSITE", "1") == "0":
+        return current
+    now = now or datetime.now(UK)
+    before = (previous or {}).get("c2c") or {}
+    try:
+        status = c2c_status.to_status(c2c_status.fetch())
+    except Exception as e:
+        fetched = before.get("fetched")
+        if before.get("source") == "c2c" and fetched and \
+                now - datetime.fromisoformat(fetched) < timedelta(minutes=C2C_KEEP_MINUTES):
+            print(f"c2c website unavailable, keeping last reading: {e}", file=sys.stderr, flush=True)
+            current["c2c"] = dict(before)
+        else:
+            print(f"c2c website unavailable, using TfL: {e}", file=sys.stderr, flush=True)
+        return current
+    status["fetched"] = now.isoformat()
+    if not status["ok"]:
+        # Keep the time we first saw this disruption (National Rail may refine it).
+        status["since"] = before.get("since") if not before.get("ok", True) and before.get("since") \
+            else now.isoformat()
+    current["c2c"] = status
+    return current
+
+
 def add_nr_explanations(current, now=None):
     """For disrupted lines, add National Rail's summary of what is happening."""
     if not nr_incidents.configured():
@@ -315,7 +349,8 @@ def add_nr_explanations(current, now=None):
     for line_id in disrupted:
         active = nr_incidents.active_unplanned(nr_incidents.for_operator(incidents, NR_OPERATORS[line_id]), now)
         if active:
-            current[line_id]["nr_reasons"] = list(dict.fromkeys(i["summary"] for i in active))
+            if current[line_id].get("source") != "c2c":
+                current[line_id]["nr_reasons"] = list(dict.fromkeys(i["summary"] for i in active))
             if active[0]["start"]:
                 current[line_id]["since"] = active[0]["start"].isoformat()
     return current
@@ -364,7 +399,7 @@ def send_all(messages, dry_run):
 
 def after_shabbat(lines, label, dry_run):
     """First check after Shabbat or Yom Tov: one text listing any lines still disrupted."""
-    current = add_nr_explanations(fetch_statuses(lines, os.environ.get("TFL_APP_KEY")))
+    current = add_nr_explanations(apply_c2c_website(fetch_statuses(lines, os.environ.get("TFL_APP_KEY")), {}))
     problems = [format_still_disrupted(s) for s in current.values() if not s["ok"]]
     print(f"After {label}: " + ("; ".join(problems) or "all lines Good Service"), flush=True)
     if problems:
@@ -374,7 +409,7 @@ def after_shabbat(lines, label, dry_run):
 
 def check_once(lines, previous, dry_run):
     """Check the lines, text any changes, and return the state to keep."""
-    current = add_nr_explanations(fetch_statuses(lines, os.environ.get("TFL_APP_KEY")))
+    current = add_nr_explanations(apply_c2c_website(fetch_statuses(lines, os.environ.get("TFL_APP_KEY")), previous))
     messages = build_messages(previous, current)
     stamp = datetime.now(UK).strftime("%H:%M")
     print(f"{stamp} " + "; ".join(f"{s['name']}: {s['summary']}" for s in current.values()), flush=True)
@@ -396,7 +431,7 @@ def main():
         return 0
 
     if os.environ.get("TEST_AFTER_SHABBAT") == "1":
-        current = add_nr_explanations(fetch_statuses(lines, os.environ.get("TFL_APP_KEY")))
+        current = add_nr_explanations(apply_c2c_website(fetch_statuses(lines, os.environ.get("TFL_APP_KEY")), {}))
         problems = [format_still_disrupted(s) for s in current.values() if not s["ok"]]
         if not problems:
             problems = ["c2c: Severe Delays since Sat 14:32. Signal failure at Upminster. "
@@ -405,7 +440,7 @@ def main():
         return 0
 
     if os.environ.get("TEST_SMS") == "1":
-        current = add_nr_explanations(fetch_statuses(lines, os.environ.get("TFL_APP_KEY")))
+        current = add_nr_explanations(apply_c2c_website(fetch_statuses(lines, os.environ.get("TFL_APP_KEY")), {}))
         status = " ".join(f"{v['name']}: {v['summary']}." if v["ok"] else format_problem(v)
                           for v in current.values())
         send_all([f"Test message. {status}"], dry_run)

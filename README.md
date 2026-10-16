@@ -2,7 +2,7 @@
 
 Texts you when **c2c** or the **Suffragette line** (London Overground, Gospel Oak to Barking Riverside) has problems, and again when the line is back to Good Service.
 
-Line statuses come from the [TfL Unified API](https://api.tfl.gov.uk/). Texts are sent either from an Android phone's own SIM (via [ntfy](https://ntfy.sh) and Tasker, see below) or through [PureSMS](https://www.puresms.co.uk/). A GitHub Actions workflow checks the lines every minute, except between midnight and 05:00 UK time. Each run checks for about 5.5 hours and then starts the next run itself. A backup schedule every 2 hours restarts the chain if a run fails.
+Line statuses come from the [TfL Unified API](https://api.tfl.gov.uk/). For c2c, live status comes first from c2c's own website (the same status box shown on c2c-online.co.uk), which usually reports problems before anyone else; National Rail's Knowledgebase Incidents feed adds start times and the weekend's planned works (needs the `NR_INCIDENTS_KEY` secret from the Rail Data Marketplace). If either is unavailable, TfL is used. Texts are sent either from an Android phone's own SIM (via [ntfy](https://ntfy.sh) and Tasker, see below) or through [PureSMS](https://www.puresms.co.uk/). A GitHub Actions workflow checks the lines every minute, except between midnight and 05:00 UK time. Each run checks for about 5.5 hours and then starts the next run itself. A backup schedule every 2 hours restarts the chain if a run fails.
 
 The repo needs to be public: Actions minutes are free and unlimited for public repos, but running all day would use up a private repo's monthly allowance. Your secrets stay private either way.
 
