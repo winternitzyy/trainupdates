@@ -54,7 +54,7 @@ class TrainAlertTests(unittest.TestCase):
         worse = [tfl_line("c2c", "c2c", 1, "Suspended", "C2C: No service."),
                  tfl_line("suffragette", "Suffragette", 10, "Good Service")]
         msgs = build_messages(parse_statuses(DELAYED), parse_statuses(worse))
-        self.assertEqual(msgs, ["c2c: Suspended. No service."])
+        self.assertEqual(msgs, ["Update: c2c: Suspended. No service."])
 
     def test_quiet_hours(self):
         at = lambda h, m: datetime(2026, 1, 1, h, m)

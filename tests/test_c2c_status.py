@@ -59,7 +59,7 @@ class ApplyTests(unittest.TestCase):
     def test_switch_from_tfl_alerts_once(self):
         previous = tfl_c2c()
         current = self.apply(previous, SEVERE)
-        self.assertEqual(train_alerts.build_messages(previous, current), [TEXT])
+        self.assertEqual(train_alerts.build_messages(previous, current), ["Update: " + TEXT])
         again = self.apply(current, SEVERE, now=self.now + timedelta(minutes=1))
         self.assertEqual(train_alerts.build_messages(current, again), [])
         self.assertEqual(again["c2c"]["since"], self.now.isoformat())  # first seen time kept

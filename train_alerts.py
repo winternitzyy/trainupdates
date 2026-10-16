@@ -172,9 +172,11 @@ def build_messages(previous, current):
             continue
         if now["ok"] and not before["ok"]:
             messages.append(f"{now['name']}: back to Good Service.")
-        elif not now["ok"] and (before["ok"] or now["summary"] != before["summary"]
-                                or now["reasons"] != before["reasons"]):
+        elif not now["ok"] and before["ok"]:
             messages.append(format_problem(now))
+        elif not now["ok"] and (now["summary"] != before["summary"] or now["reasons"] != before["reasons"]):
+            # The line was already disrupted; this is new information about it.
+            messages.append("Update: " + format_problem(now))
     return messages
 
 
