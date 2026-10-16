@@ -2,6 +2,7 @@
 
 Used to check access and the feed's format. Needs NR_INCIDENTS_KEY.
 """
+import gzip
 import os
 import re
 import sys
@@ -29,6 +30,11 @@ for header in ("x-apikey", "apikey"):
 if body is None:
     sys.exit(1)
 
+print("First bytes:", body[:12])
+if body[:2] == b"\x1f\x8b":
+    body = gzip.decompress(body)
+    print("Body was gzip-compressed;", len(body), "bytes after decompressing")
+body = body.lstrip(b"\xef\xbb\xbf \r\n\t")
 root = ET.fromstring(body)
 strip = lambda tag: tag.split("}")[-1]
 print("Root:", strip(root.tag), "children:", len(root))
