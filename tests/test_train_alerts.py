@@ -87,10 +87,9 @@ class TrainAlertTests(unittest.TestCase):
         text = format_weekly([(datetime(2026, 10, 17).date(), parse_statuses(sat)),
                               (datetime(2026, 10, 18).date(), parse_statuses(sun))])
         self.assertEqual(text,
-            "Train status for the coming weekend.\n"
-            "Sat 17 Oct: c2c: running normally, no planned works. "
-            "Suffragette: running normally, no planned works.\n"
-            "Sun 18 Oct: c2c: running normally, no planned works. Suffragette: Part Closure. "
+            "Train status for the coming weekend (Sat 17 & Sun 18 Oct).\n"
+            "c2c: running normally, no planned works.\n"
+            "Suffragette: Sat: running normally, no planned works. Sun: Part Closure. "
             "No service between Barking and Barking Riverside, please use local London Buses services.")
 
     def test_line_name_prefix_removed(self):

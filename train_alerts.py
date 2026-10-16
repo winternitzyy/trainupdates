@@ -243,20 +243,36 @@ def strip_leading_date(reason):
     return rest[:1].upper() + rest[1:] if rest else reason
 
 
-def format_day(day, statuses):
-    parts = []
-    for s in statuses.values():
-        if s["ok"]:
-            parts.append(f"{s['name']}: running normally, no planned works.")
-        else:
-            s = dict(s, reasons=[strip_leading_date(r) for r in s["reasons"]], nr_reasons=None)
-            parts.append(format_problem(s, limit=400))
-    return f"{day:%a %-d %b}: " + " ".join(parts)
+def describe_day(status):
+    """What one line looks like on one day, without the line's name."""
+    if status["ok"]:
+        return "running normally, no planned works."
+    reasons = [r if r.endswith((".", "!", "?")) else r + "."
+               for r in (strip_leading_date(r) for r in status["reasons"])]
+    text = " ".join([f"{status['summary']}."] + reasons)
+    return text if len(text) <= 400 else text[:397] + "..."
 
 
 def format_weekly(days_statuses):
-    return "Train status for the coming weekend.\n" + "\n".join(
-        format_day(day, statuses) for day, statuses in days_statuses)
+    """One entry per line. Lines whose works are dated themselves (National Rail)
+    list each work once; others say "Sat: ... Sun: ..." unless both days match."""
+    days = [d for d, _ in days_statuses]
+    span = f"{days[0]:%a %-d}" + (f" & {days[-1]:%a %-d %b}" if len(days) > 1 else f" {days[0]:%b}")
+    parts = [f"Train status for the coming weekend ({span})."]
+    for line_id, first in days_statuses[0][1].items():
+        per_day = [statuses[line_id] for _, statuses in days_statuses if line_id in statuses]
+        if first.get("nr_planned"):
+            works = list(dict.fromkeys(r for st in per_day for r in st["reasons"]))
+            text = ("Planned works. " + " ".join(w if w.endswith((".", "!", "?")) else w + "." for w in works)
+                    if works else "running normally, no planned works.")
+        else:
+            texts = [describe_day(st) for st in per_day]
+            if len(set(texts)) == 1:
+                text = texts[0]
+            else:
+                text = " ".join(f"{d:%a}: {t}" for d, t in zip(days, texts))
+        parts.append(f"{first['name']}: {text}")
+    return "\n".join(parts)
 
 
 def add_nr_planned_works(day, statuses):
@@ -273,7 +289,7 @@ def add_nr_planned_works(day, statuses):
             works = nr_incidents.planned_on(nr_incidents.for_operator(incidents, code), day, UK)
             summaries = list(dict.fromkeys(w["summary"] for w in works))
             statuses[line_id] = dict(statuses[line_id], ok=not works, summary="Planned works",
-                                     reasons=summaries, nr_reasons=None)
+                                     reasons=summaries, nr_reasons=None, nr_planned=True)
     return statuses
 
 

@@ -91,19 +91,29 @@ class IntegrationTests(unittest.TestCase):
             p.start()
             self.addCleanup(p.stop)
 
-    def test_weekend_preview_uses_national_rail_for_c2c(self):
-        statuses = {"c2c": good("c2c", "c2c"), "suffragette": good("suffragette", "Suffragette")}
-        sun = train_alerts.add_nr_planned_works(date(2026, 10, 18), statuses)
-        text = train_alerts.format_day(date(2026, 10, 18), sun)
-        self.assertEqual(text, "Sun 18 Oct: c2c: Planned works. No London-bound trains at Limehouse from 20:45 "
-                               "on Saturday 17 October to Sunday 1 November. Buses replace trains between "
-                               "Rainham / Upminster and Pitsea until 13:05 on Sunday 18 October. "
-                               "Suffragette: running normally, no planned works.")
+    def preview(self, sat, sun):
+        days = [(date(2026, 10, 17), train_alerts.add_nr_planned_works(date(2026, 10, 17), sat)),
+                (date(2026, 10, 18), train_alerts.add_nr_planned_works(date(2026, 10, 18), sun))]
+        return train_alerts.format_weekly(days)
 
-    def test_no_planned_works_means_running_normally(self):
-        statuses = {"c2c": {"name": "c2c", "ok": False, "summary": "Part Closure", "reasons": ["TfL says"]}}
-        text = train_alerts.format_day(date(2026, 11, 7), train_alerts.add_nr_planned_works(date(2026, 11, 7), statuses))
-        self.assertEqual(text, "Sat 7 Nov: c2c: running normally, no planned works.")
+    def test_weekend_preview_lists_each_work_once(self):
+        part = {"name": "Suffragette", "ok": False, "summary": "Part Closure",
+                "reasons": ["SUFFRAGETTE LINE: Sunday 18 October, no service between Barking and Barking Riverside"]}
+        text = self.preview({"c2c": good("c2c", "c2c"), "suffragette": good("suffragette", "Suffragette")},
+                            {"c2c": good("c2c", "c2c"), "suffragette": part})
+        self.assertEqual(text,
+            "Train status for the coming weekend (Sat 17 & Sun 18 Oct).\n"
+            "c2c: Planned works. No London-bound trains at Limehouse from 20:45 on Saturday 17 October to "
+            "Sunday 1 November. Buses replace trains between Rainham / Upminster and Pitsea until 13:05 on "
+            "Sunday 18 October.\n"
+            "Suffragette: Sat: running normally, no planned works. Sun: Part Closure. "
+            "SUFFRAGETTE LINE: Sunday 18 October, no service between Barking and Barking Riverside.")
+
+    def test_same_both_days_said_once(self):
+        with mock.patch.object(nr_incidents, "get", return_value=[]):
+            text = self.preview({"c2c": good("c2c", "c2c")}, {"c2c": good("c2c", "c2c")})
+        self.assertEqual(text, "Train status for the coming weekend (Sat 17 & Sun 18 Oct).\n"
+                               "c2c: running normally, no planned works.")
 
     def test_live_alert_uses_national_rail_explanation(self):
         current = {"c2c": {"name": "c2c", "ok": False, "summary": "Special Service",
