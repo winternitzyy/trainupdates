@@ -11,6 +11,10 @@ on:
           - Weekend preview
           - After Shabbat
         default: Current status
+      dry_run:
+        description: "Only show the text in the log, don't send it"
+        type: boolean
+        default: false
 
 jobs:
   test:
@@ -30,6 +34,8 @@ jobs:
           TFL_APP_KEY: ${{ secrets.TFL_APP_KEY }}
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
           NTFY_TOKEN: ${{ secrets.NTFY_TOKEN }}
+          NR_INCIDENTS_KEY: ${{ secrets.NR_INCIDENTS_KEY }}
+          DRY_RUN: ${{ inputs.dry_run && '1' || '' }}
           TEST_SMS: ${{ inputs.message == 'Current status' && '1' || '' }}
           WEEKLY_PREVIEW: ${{ inputs.message == 'Weekend preview' && '1' || '' }}
           TEST_AFTER_SHABBAT: ${{ inputs.message == 'After Shabbat' && '1' || '' }}

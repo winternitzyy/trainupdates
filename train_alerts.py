@@ -17,6 +17,10 @@ Texts go out one of two ways:
 
 Environment variables:
   TFL_APP_KEY      Optional TfL API key (higher rate limits).
+  NR_INCIDENTS_KEY Optional Rail Data Marketplace key for National Rail's
+                   Knowledgebase Incidents feed. When set, c2c alerts use
+                   National Rail's explanation, and the weekend preview takes
+                   c2c planned works from National Rail. TfL is the fallback.
   TRAIN_LINES      Optional, defaults to "c2c,suffragette".
   STATE_FILE       Optional, defaults to "state.json".
   DRY_RUN          If set to "1", print messages instead of sending them.
@@ -47,6 +51,7 @@ import urllib.request
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
+import nr_incidents
 import shabbat
 
 TFL_URL = "https://api.tfl.gov.uk/Line/{lines}/Status"
@@ -55,6 +60,7 @@ UK = ZoneInfo("Europe/London")
 PURESMS_URL = "https://connect-api.divergent.cloud/sms/send"
 NTFY_SERVER = "https://ntfy.sh"
 GOOD_SERVICE = 10
+NR_OPERATORS = {"c2c": "CC"}  # TfL line id -> National Rail operator code
 SMS_PREFIX = "Train Alerts: "
 USER_AGENT = "trainupdates/1.0 (+https://github.com/winternitzyy/trainupdates)"
 
@@ -134,8 +140,8 @@ def format_still_disrupted(status, limit=400):
         since = datetime.fromisoformat(status["since"]).astimezone(UK)
         text += f" since {since:%a %H:%M}"
     text += "."
-    if status["reasons"]:
-        text += " " + " ".join(status["reasons"])
+    if shown_reasons(status):
+        text += " " + " ".join(shown_reasons(status))
     if len(text) > limit:
         text = text[: limit - 3] + "..."
     return text + " Still disrupted."
@@ -167,10 +173,16 @@ def build_messages(previous, current):
     return messages
 
 
+def shown_reasons(status):
+    """National Rail's explanation if we have one, otherwise TfL's reason, as sentences."""
+    reasons = status.get("nr_reasons") or status["reasons"]
+    return [r if r.endswith((".", "!", "?")) or r.startswith("http") else r + "." for r in reasons]
+
+
 def format_problem(status, limit=600):
     text = f"{status['name']}: {status['summary']}."
-    if status["reasons"]:
-        text += " " + " ".join(status["reasons"])
+    if shown_reasons(status):
+        text += " " + " ".join(shown_reasons(status))
     return text if len(text) <= limit else text[: limit - 3] + "..."
 
 
@@ -237,7 +249,7 @@ def format_day(day, statuses):
         if s["ok"]:
             parts.append(f"{s['name']}: running normally, no planned works.")
         else:
-            s = dict(s, reasons=[strip_leading_date(r) for r in s["reasons"]])
+            s = dict(s, reasons=[strip_leading_date(r) for r in s["reasons"]], nr_reasons=None)
             parts.append(format_problem(s, limit=400))
     return f"{day:%a %-d %b}: " + " ".join(parts)
 
@@ -247,9 +259,50 @@ def format_weekly(days_statuses):
         format_day(day, statuses) for day, statuses in days_statuses)
 
 
+def add_nr_planned_works(day, statuses):
+    """Replace TfL's planned status with National Rail's planned works where we can."""
+    if not nr_incidents.configured():
+        return statuses
+    try:
+        incidents = nr_incidents.get()
+    except Exception as e:  # keep TfL's view if National Rail is unavailable
+        print(f"National Rail feed unavailable, using TfL: {e}", file=sys.stderr, flush=True)
+        return statuses
+    for line_id, code in NR_OPERATORS.items():
+        if line_id in statuses:
+            works = nr_incidents.planned_on(nr_incidents.for_operator(incidents, code), day, UK)
+            summaries = list(dict.fromkeys(w["summary"] for w in works))
+            statuses[line_id] = dict(statuses[line_id], ok=not works, summary="Planned works",
+                                     reasons=summaries, nr_reasons=None)
+    return statuses
+
+
 def send_weekly(lines, days, dry_run):
     key = os.environ.get("TFL_APP_KEY")
-    send_all([format_weekly([(d, fetch_statuses(lines, key, day=d)) for d in days])], dry_run)
+    send_all([format_weekly([(d, add_nr_planned_works(d, fetch_statuses(lines, key, day=d)))
+                             for d in days])], dry_run)
+
+
+def add_nr_explanations(current, now=None):
+    """For disrupted lines, add National Rail's summary of what is happening."""
+    if not nr_incidents.configured():
+        return current
+    disrupted = [l for l in NR_OPERATORS if l in current and not current[l]["ok"]]
+    if not disrupted:
+        return current
+    try:
+        incidents = nr_incidents.get()
+    except Exception as e:  # texts fall back to TfL's reason
+        print(f"National Rail feed unavailable, using TfL: {e}", file=sys.stderr, flush=True)
+        return current
+    now = now or datetime.now(UK)
+    for line_id in disrupted:
+        active = nr_incidents.active_unplanned(nr_incidents.for_operator(incidents, NR_OPERATORS[line_id]), now)
+        if active:
+            current[line_id]["nr_reasons"] = list(dict.fromkeys(i["summary"] for i in active))
+            if active[0]["start"]:
+                current[line_id]["since"] = active[0]["start"].isoformat()
+    return current
 
 
 def send_ntfy(body, topic, server=None, token=None):
@@ -295,7 +348,7 @@ def send_all(messages, dry_run):
 
 def after_shabbat(lines, label, dry_run):
     """First check after Shabbat or Yom Tov: one text listing any lines still disrupted."""
-    current = fetch_statuses(lines, os.environ.get("TFL_APP_KEY"))
+    current = add_nr_explanations(fetch_statuses(lines, os.environ.get("TFL_APP_KEY")))
     problems = [format_still_disrupted(s) for s in current.values() if not s["ok"]]
     print(f"After {label}: " + ("; ".join(problems) or "all lines Good Service"), flush=True)
     if problems:
@@ -305,7 +358,7 @@ def after_shabbat(lines, label, dry_run):
 
 def check_once(lines, previous, dry_run):
     """Check the lines, text any changes, and return the state to keep."""
-    current = fetch_statuses(lines, os.environ.get("TFL_APP_KEY"))
+    current = add_nr_explanations(fetch_statuses(lines, os.environ.get("TFL_APP_KEY")))
     messages = build_messages(previous, current)
     stamp = datetime.now(UK).strftime("%H:%M")
     print(f"{stamp} " + "; ".join(f"{s['name']}: {s['summary']}" for s in current.values()), flush=True)
@@ -327,7 +380,7 @@ def main():
         return 0
 
     if os.environ.get("TEST_AFTER_SHABBAT") == "1":
-        current = fetch_statuses(lines, os.environ.get("TFL_APP_KEY"))
+        current = add_nr_explanations(fetch_statuses(lines, os.environ.get("TFL_APP_KEY")))
         problems = [format_still_disrupted(s) for s in current.values() if not s["ok"]]
         if not problems:
             problems = ["c2c: Severe Delays since Sat 14:32. Signal failure at Upminster. "
