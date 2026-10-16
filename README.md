@@ -2,7 +2,7 @@
 
 Texts you when **c2c** or the **Suffragette line** (London Overground, Gospel Oak to Barking Riverside) has problems, and again when the line is back to Good Service.
 
-Line statuses come from the [TfL Unified API](https://api.tfl.gov.uk/). SMS messages are sent through [PureSMS](https://www.puresms.co.uk/). A GitHub Actions workflow checks the lines every minute, except between midnight and 05:00 UK time. Each run checks for about 5.5 hours and then starts the next run itself. A backup schedule every 2 hours restarts the chain if a run fails.
+Line statuses come from the [TfL Unified API](https://api.tfl.gov.uk/). Texts are sent either from an Android phone's own SIM (via [ntfy](https://ntfy.sh) and Tasker, see below) or through [PureSMS](https://www.puresms.co.uk/). A GitHub Actions workflow checks the lines every minute, except between midnight and 05:00 UK time. Each run checks for about 5.5 hours and then starts the next run itself. A backup schedule every 2 hours restarts the chain if a run fails.
 
 The repo needs to be public: Actions minutes are free and unlimited for public repos, but running all day would use up a private repo's monthly allowance. Your secrets stay private either way.
 
@@ -35,6 +35,24 @@ Train Alerts: c2c: Severe Delays since Sat 14:32. Signal failure at Upminster. S
 
 4. Make sure this is on the default branch, then open **Actions → Train alerts → Run workflow** to start checking.
 5. To check SMS works, open **Actions → Send test SMS → Run workflow**. Pick **Current status**, **Weekend preview** or **After Shabbat**.
+
+## Sending texts from a phone (ntfy + Tasker)
+
+When the `NTFY_TOPIC` secret is set, each text is published to that [ntfy](https://ntfy.sh) topic instead of PureSMS. An Android phone subscribed to the topic passes it to Tasker, which sends it as an SMS from the phone's SIM. If ntfy can't be reached and the PureSMS secrets are still set, the text goes through PureSMS instead.
+
+On the phone:
+
+1. Install **ntfy** and **Tasker**. Turn off battery optimisation for both (Settings → Apps → *app* → Battery → Unrestricted).
+2. In ntfy, subscribe to a topic with a long random name, e.g. `trainalerts-7Kq9xV2mPz4w`. Anyone who knows the name can post to it, so keep it private.
+3. In Tasker, create a profile named `Train alerts`: **Event → System → Intent Received**, Action `io.heckel.ntfy.MESSAGE_RECEIVED`.
+4. Give it a task:
+   - **If** `%topic` `~` *your topic name*
+   - **Phone → Send SMS**: Number *the number to text*, Message `%message` (one Send SMS per recipient)
+   - **End If**
+5. Test: in the ntfy app, open the topic and send `Test from ntfy`. The phone should text it to you.
+6. In GitHub, add the topic name as the secret `NTFY_TOPIC`. Then run **Actions → Send test SMS** to check the whole path.
+
+Optional pause by text: add profiles **Event → Phone → Received Text** (Sender: your number, Content `STOP` / `START`) whose tasks run **Tasker → Profile Status**, Name `Train alerts`, Set Off / On.
 
 ## Example messages
 

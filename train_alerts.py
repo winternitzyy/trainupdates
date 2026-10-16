@@ -1,15 +1,21 @@
 """Send an SMS when c2c or the Suffragette line has problems.
 
-Checks the TfL Unified API for line status, then texts you through PureSMS
-when a line's status changes, for example from Good Service to Severe Delays
+Checks the TfL Unified API for line status, then texts you when a line's
+status changes, for example from Good Service to Severe Delays
 and back again. It saves the last status it saw so it does not text you
 about the same problem twice.
 
-Environment variables:
+Texts go out one of two ways:
+  NTFY_TOPIC       If set, each text is published to this ntfy topic, and a
+                   phone running ntfy + Tasker sends it as an SMS from its SIM.
+  NTFY_SERVER      Optional, defaults to "https://ntfy.sh".
+  NTFY_TOKEN       Optional access token, if the topic is protected.
   PURESMS_API_KEY, PURESMS_SENDER, ALERT_TO_NUMBER
-      Required for sending SMS. PURESMS_SENDER is a sender set up in your
-      PureSMS dashboard. ALERT_TO_NUMBER is in +44 format; separate several
-      recipients with commas.
+      Used when NTFY_TOPIC is not set, or as a backup if ntfy can't be
+      reached. PURESMS_SENDER is a sender set up in your PureSMS dashboard.
+      ALERT_TO_NUMBER is in +44 format; separate several with commas.
+
+Environment variables:
   TFL_APP_KEY      Optional TfL API key (higher rate limits).
   TRAIN_LINES      Optional, defaults to "c2c,suffragette".
   STATE_FILE       Optional, defaults to "state.json".
@@ -47,6 +53,7 @@ TFL_URL = "https://api.tfl.gov.uk/Line/{lines}/Status"
 TFL_RANGE_URL = "https://api.tfl.gov.uk/Line/{lines}/Status/{start}/to/{end}"
 UK = ZoneInfo("Europe/London")
 PURESMS_URL = "https://connect-api.divergent.cloud/sms/send"
+NTFY_SERVER = "https://ntfy.sh"
 GOOD_SERVICE = 10
 SMS_PREFIX = "Train Alerts: "
 USER_AGENT = "trainupdates/1.0 (+https://github.com/winternitzyy/trainupdates)"
@@ -245,18 +252,45 @@ def send_weekly(lines, days, dry_run):
     send_all([format_weekly([(d, fetch_statuses(lines, key, day=d)) for d in days])], dry_run)
 
 
-def send_all(messages, dry_run):
-    if dry_run:
-        for m in messages:
-            print(f"[DRY RUN] SMS: {SMS_PREFIX}{m}", flush=True)
-        return
+def send_ntfy(body, topic, server=None, token=None):
+    url = f"{(server or NTFY_SERVER).rstrip('/')}/{urllib.parse.quote(topic)}"
+    req = urllib.request.Request(url, data=body.encode("utf-8"), method="POST")
+    req.add_header("User-Agent", USER_AGENT)
+    if token:
+        req.add_header("Authorization", f"Bearer {token}")
+    with open_url(req) as resp:
+        resp.read()
+
+
+def send_puresms(body):
     api_key = os.environ["PURESMS_API_KEY"]
     sender = os.environ["PURESMS_SENDER"]
-    recipients = [n.strip() for n in os.environ["ALERT_TO_NUMBER"].split(",") if n.strip()]
+    for to in [n.strip() for n in os.environ["ALERT_TO_NUMBER"].split(",") if n.strip()]:
+        send_sms(body, api_key, sender, to)
+
+
+def puresms_configured():
+    return all(os.environ.get(k) for k in ("PURESMS_API_KEY", "PURESMS_SENDER", "ALERT_TO_NUMBER"))
+
+
+def send_all(messages, dry_run):
+    topic = os.environ.get("NTFY_TOPIC")
     for m in messages:
-        for to in recipients:
-            send_sms(SMS_PREFIX + m, api_key, sender, to)
-        print(f"Sent SMS: {SMS_PREFIX}{m}", flush=True)
+        body = SMS_PREFIX + m
+        if dry_run:
+            print(f"[DRY RUN] SMS via {'ntfy' if topic else 'PureSMS'}: {body}", flush=True)
+            continue
+        if topic:
+            try:
+                send_ntfy(body, topic, os.environ.get("NTFY_SERVER"), os.environ.get("NTFY_TOKEN"))
+                print(f"Sent via ntfy: {body}", flush=True)
+                continue
+            except (urllib.error.URLError, OSError) as e:
+                if not puresms_configured():
+                    raise
+                print(f"ntfy failed ({e}), sending through PureSMS instead.", file=sys.stderr, flush=True)
+        send_puresms(body)
+        print(f"Sent SMS: {body}", flush=True)
 
 
 def after_shabbat(lines, label, dry_run):
