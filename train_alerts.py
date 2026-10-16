@@ -405,8 +405,9 @@ def main():
         return 0
 
     if os.environ.get("TEST_SMS") == "1":
-        current = fetch_statuses(lines, os.environ.get("TFL_APP_KEY"))
-        status = "; ".join(f"{v['name']}: {v['summary']}" for v in current.values())
+        current = add_nr_explanations(fetch_statuses(lines, os.environ.get("TFL_APP_KEY")))
+        status = " ".join(f"{v['name']}: {v['summary']}." if v["ok"] else format_problem(v)
+                          for v in current.values())
         send_all([f"Test message. {status}"], dry_run)
         return 0
 
