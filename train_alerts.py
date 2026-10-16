@@ -57,6 +57,7 @@ from zoneinfo import ZoneInfo
 import c2c_status
 import nr_incidents
 import shabbat
+import timing
 
 TFL_URL = "https://api.tfl.gov.uk/Line/{lines}/Status"
 TFL_RANGE_URL = "https://api.tfl.gov.uk/Line/{lines}/Status/{start}/to/{end}"
@@ -409,13 +410,42 @@ def after_shabbat(lines, label, dry_run):
 
 def check_once(lines, previous, dry_run):
     """Check the lines, text any changes, and return the state to keep."""
-    current = add_nr_explanations(apply_c2c_website(fetch_statuses(lines, os.environ.get("TFL_APP_KEY")), previous))
+    tfl = fetch_statuses(lines, os.environ.get("TFL_APP_KEY"))
+    tfl_c2c_bad = "c2c" in tfl and not tfl["c2c"]["ok"]
+    current = add_nr_explanations(apply_c2c_website(tfl, previous))
     messages = build_messages(previous, current)
     stamp = datetime.now(UK).strftime("%H:%M")
     print(f"{stamp} " + "; ".join(f"{s['name']}: {s['summary']}" for s in current.values()), flush=True)
     if messages:
         send_all(messages, dry_run)
+    current["_episode"] = track_sources(previous.get("_episode"), current, tfl_c2c_bad)
     return current
+
+
+def track_sources(episode, current, tfl_c2c_bad, now=None):
+    """Log which source reported each c2c disruption first. Never breaks the checks."""
+    try:
+        now = now or datetime.now(UK)
+        c2c = current.get("c2c") or {}
+        c2c_bad = c2c.get("source") == "c2c" and not c2c.get("ok", True)
+        nr_active = []
+        if nr_incidents.configured():
+            try:
+                nr_active = nr_incidents.active_unplanned(
+                    nr_incidents.for_operator(nr_incidents.get(), NR_OPERATORS["c2c"]), now)
+            except Exception:
+                pass
+        title = (c2c.get("reasons") or [""])[0].split(":")[0] if c2c_bad else ""
+        episode, row = timing.update(episode, now, c2c_bad, title, tfl_c2c_bad, nr_active)
+        if row:
+            timing.append(row, os.environ.get("DISRUPTION_LOG", "disruption_log.csv"))
+            print(f"Logged disruption: first reported by {row['first']} "
+                  f"(c2c {row['c2c_website'] or '-'}, TfL {row['tfl'] or '-'}, "
+                  f"National Rail {row['national_rail'] or '-'})", flush=True)
+        return episode
+    except Exception as e:
+        print(f"Source tracking failed: {e}", file=sys.stderr, flush=True)
+        return episode
 
 
 def main():
@@ -475,7 +505,7 @@ def main():
                     new_state = after_shabbat(lines, label if isinstance(label, str) else "Shabbat", dry_run)
                 else:
                     new_state = check_once(lines, state, dry_run)
-                state = {**new_state, **markers}
+                state = {**markers, **new_state}
                 save_state(state_file, state)
             except (urllib.error.URLError, OSError, ValueError) as e:
                 # Keep the old state so a failed SMS is retried on the next check.

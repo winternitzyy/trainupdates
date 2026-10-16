@@ -50,6 +50,7 @@ def parse(body):
             "number": _first(el, "IncidentNumber"),
             "planned": _first(el, "Planned").lower() == "true",
             "cleared": _first(el, "ClearedIncident").lower() == "true",
+            "created": _time(_first(el, "CreationTime")),
             "start": _time(_first(el, "StartTime")),
             "end": _time(_first(el, "EndTime")),
             "summary": " ".join(_first(el, "Summary").split()),

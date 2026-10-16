@@ -36,6 +36,10 @@ Train Alerts: c2c: Severe Delays since Sat 14:32. Signal failure at Upminster. S
 4. Make sure this is on the default branch, then open **Actions → Train alerts → Run workflow** to start checking.
 5. To check SMS works, open **Actions → Send test SMS → Run workflow**. Pick **Current status**, **Weekend preview** or **After Shabbat**.
 
+## Who reports c2c disruptions first
+
+Each c2c disruption gets a row in [`disruption_log.csv`](disruption_log.csv): the time c2c's website, TfL and National Rail each first reported it, which was first, and by how many minutes. c2c and TfL times are when our minute-by-minute check first saw the problem; the National Rail time is when it created the incident. The file is updated at the end of each 5.5-hour run, and no times are recorded during quiet hours or Shabbat/Yom Tov.
+
 ## Sending texts from a phone (ntfy + Tasker)
 
 When the `NTFY_TOPIC` secret is set, each text is published to that [ntfy](https://ntfy.sh) topic instead of PureSMS. An Android phone subscribed to the topic passes it to Tasker, which sends it as an SMS from the phone's SIM. If ntfy can't be reached and the PureSMS secrets are still set, the text goes through PureSMS instead.

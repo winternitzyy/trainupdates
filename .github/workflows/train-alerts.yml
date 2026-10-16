@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write  # to save disruption_log.csv
   actions: write
 
 jobs:
@@ -58,6 +58,19 @@ jobs:
         with:
           path: state.json
           key: train-state-${{ github.run_id }}-${{ github.run_attempt }}
+
+      # Commits the record of which source reported each c2c disruption first.
+      - name: Save disruption log
+        if: always()
+        run: |
+          if [ -n "$(git status --porcelain -- disruption_log.csv)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add disruption_log.csv
+            git commit -m "Update disruption log"
+            git pull --rebase origin "$GITHUB_REF_NAME"
+            git push origin "HEAD:$GITHUB_REF_NAME"
+          fi
 
       - name: Start the next run
         if: success()
