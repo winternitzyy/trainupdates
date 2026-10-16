@@ -1,0 +1,19 @@
+name: Probe c2c website status
+
+on:
+  workflow_dispatch:
+    inputs:
+      urls:
+        description: "Pages to fetch (space-separated, optional)"
+        type: string
+        default: ""
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python scripts/probe_c2c.py ${{ inputs.urls }}
