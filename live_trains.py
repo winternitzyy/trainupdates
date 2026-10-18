@@ -1,7 +1,7 @@
 """How the next trains are actually running on our journey, from live
 departure boards. Only checked once a line is reported as disrupted, and added
 to that line's text, e.g.
-"BKG→STO: 14:05 cancelled, 14:20 3 minutes delayed, 14:35 on time."
+"STO→BKG: 14:05 cancelled, 14:20 3 minutes delayed, 14:35 on time."
 
 Suffragette boards come from TfL (no key needed). c2c boards come from
 National Rail's staff departure boards and need NR_LDB_KEY.
@@ -21,16 +21,15 @@ LDB_URL = ("https://api1.raildata.org.uk/1010-live-arrival-and-departure-boards-
 USER_AGENT = "trainupdates/1.0 (+https://github.com/winternitzyy/trainupdates)"
 TRAINS = 3
 
-# line -> boards to check, from and to as station codes. TfL boards list both
+# line -> boards to check, from and to as station codes. Only the two ends of our
+# WCF–BKG–STO journey are checked, not the change at Barking. TfL boards list both
 # directions, so trains going our way are picked by text in their destination name.
 BOARDS = {
     "suffragette": [
-        {"from": "BKG", "to": "STO", "tfl_stop": "910GBARKING", "toward": "Gospel Oak"},
         {"from": "STO", "to": "BKG", "tfl_stop": "910GSTOTNHM", "toward": "Barking"},
     ],
     "c2c": [
         {"from": "WCF", "to": "BKG", "national_rail": True},
-        {"from": "BKG", "to": "WCF", "national_rail": True},
     ],
 }
 
