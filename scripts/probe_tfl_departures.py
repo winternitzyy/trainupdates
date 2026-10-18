@@ -1,5 +1,5 @@
-"""Find TfL's stop codes for Barking and South Tottenham and show the next
-Suffragette line departures between them."""
+"""Show TfL's live departures at Barking, South Tottenham and Westcliff, to see
+which lines TfL has live boards for."""
 import json
 import urllib.parse
 import urllib.request
@@ -13,28 +13,22 @@ def get(path, **params):
         return json.load(r)
 
 
-stops = {}
-for name in ("Barking", "South Tottenham"):
+for name in ("Westcliff",):
     res = get(f"/StopPoint/Search/{urllib.parse.quote(name)}", modes="overground,national-rail")
     for m in res.get("matches", [])[:5]:
         print(f"{name}: {m.get('id')} | {m.get('name')} | modes={m.get('modes')}")
-    best = next((m for m in res.get("matches", []) if m.get("id", "").startswith("910G")), None) or \
-        (res.get("matches") or [{}])[0]
-    stops[name] = best.get("id")
-print("chosen:", stops)
 
-for frm, to in (("Barking", "South Tottenham"), ("South Tottenham", "Barking")):
-    sid = stops[frm]
-    for path in (f"/StopPoint/{sid}/ArrivalDepartures", ):
-        try:
-            data = get(path, lineIds="suffragette")
-        except Exception as e:
-            print(path, "error:", e)
-            continue
-        print(f"\n== {frm} -> {to}: {len(data)} entries from {path}")
-        if data:
-            print("fields:", sorted(data[0]))
-        for d in sorted(data, key=lambda d: d.get("scheduledTimeOfDeparture") or "")[:6]:
-            print({k: d.get(k) for k in ("destinationName", "scheduledTimeOfDeparture", "estimatedTimeOfDeparture",
-                                         "departureStatus", "minutesAndSecondsToDeparture", "platformName",
-                                         "cause")})
+for sid, line in (("910GBARKING", "suffragette"), ("910GSTOTNHM", "suffragette"),
+                  ("910GBARKING", "c2c"), ("910GWCLIFF", "c2c")):
+    path = f"/StopPoint/{sid}/ArrivalDepartures"
+    try:
+        data = get(path, lineIds=line)
+    except Exception as e:
+        print(f"\n== {sid} {line}: error {e}")
+        continue
+    print(f"\n== {sid} {line}: {len(data)} entries")
+    statuses = sorted({d.get("departureStatus") for d in data})
+    print("statuses seen:", statuses)
+    for d in sorted(data, key=lambda d: d.get("scheduledTimeOfDeparture") or "")[:8]:
+        print({k: d.get(k) for k in ("destinationName", "scheduledTimeOfDeparture", "estimatedTimeOfDeparture",
+                                     "departureStatus", "minutesAndSecondsToDeparture")})
