@@ -45,6 +45,12 @@ class LiveTrainTests(unittest.TestCase):
         self.assertEqual(live_trains.describe_board("Barking", "South Tottenham", trains),
                          "Barking→South Tottenham: 13:43 on time.")
 
+    def test_delayed_without_estimate(self):
+        board = [dep("Barking Rail Station", "2026-10-18T12:52:00Z", None, "Delayed")]
+        trains = live_trains.next_trains(board, "Barking", NOW)
+        self.assertEqual(live_trains.describe_board("South Tottenham", "Barking", trains),
+                         "South Tottenham→Barking: 13:52 delayed.")
+
     def test_no_boards_for_line(self):
         self.assertEqual(live_trains.check("unknown-line", NOW), "")
 

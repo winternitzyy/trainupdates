@@ -195,10 +195,10 @@ def format_problem(status, limit=600):
     return text + (" " + status["live"] if status.get("live") else "")
 
 
-def add_live_trains(current):
+def add_live_trains(current, every_line=False):
     """Add how the next trains on our journey are running to each disrupted line."""
     for line_id, status in current.items():
-        if not line_id.startswith("_") and not status["ok"]:
+        if not line_id.startswith("_") and (every_line or not status["ok"]):
             status["live"] = live_trains.check(line_id, app_key=os.environ.get("TFL_APP_KEY"))
     return current
 
@@ -497,9 +497,8 @@ def main():
 
     if os.environ.get("TEST_SMS") == "1":
         current = add_live_trains(add_nr_explanations(
-            apply_c2c_website(fetch_statuses(lines, os.environ.get("TFL_APP_KEY")), {})))
-        status = " ".join(f"{v['name']}: {v['summary']}." if v["ok"] else format_problem(v)
-                          for v in current.values())
+            apply_c2c_website(fetch_statuses(lines, os.environ.get("TFL_APP_KEY")), {})), every_line=True)
+        status = " ".join(format_problem(v) for v in current.values())
         send_all([f"Test message. {status}"], dry_run)
         return 0
 

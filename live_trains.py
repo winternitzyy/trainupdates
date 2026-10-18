@@ -44,7 +44,8 @@ def fetch_board(stop, line, app_key=None):
 
 
 def next_trains(board, toward, now, count=TRAINS):
-    """The next `count` departures heading `toward`, as (scheduled, delay minutes or None if cancelled)."""
+    """The next `count` departures heading `toward`, as (scheduled, delay), where delay is
+    minutes late, None if cancelled, or -1 if late by an amount TfL doesn't give."""
     trains = []
     for d in board:
         if toward.lower() not in (d.get("destinationName") or "").lower():
@@ -53,11 +54,16 @@ def next_trains(board, toward, now, count=TRAINS):
         if scheduled is None:
             continue
         status = (d.get("departureStatus") or "").lower()
-        estimated = _time(d.get("estimatedTimeOfDeparture")) or scheduled
+        estimated = _time(d.get("estimatedTimeOfDeparture"))
         cancelled = status == "cancelled"
-        if (scheduled if cancelled else estimated) < now - timedelta(minutes=1):
+        if (estimated or scheduled) < now - timedelta(minutes=1):
             continue  # already left
-        delay = None if cancelled else max(0, int((estimated - scheduled).total_seconds() // 60))
+        if cancelled:
+            delay = None
+        elif estimated is None:
+            delay = -1 if status == "delayed" else 0
+        else:
+            delay = max(0, int((estimated - scheduled).total_seconds() // 60))
         trains.append((scheduled, delay))
     trains.sort(key=lambda t: t[0])
     return trains[:count]
@@ -67,6 +73,8 @@ def describe_train(scheduled, delay):
     text = f"{scheduled.astimezone(UK):%H:%M}"
     if delay is None:
         return text + " cancelled"
+    if delay == -1:
+        return text + " delayed"
     if delay == 0:
         return text + " on time"
     return text + f" {delay} minute{'s' if delay != 1 else ''} delayed"

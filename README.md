@@ -40,6 +40,15 @@ Train Alerts: c2c: Severe Delays since Sat 14:32. Signal failure at Upminster. S
 
 Each c2c disruption gets a row in [`disruption_log.csv`](disruption_log.csv): the time c2c's website, TfL and National Rail each first reported it, which was first, and by how many minutes. c2c and TfL times are when our minute-by-minute check first saw the problem; the National Rail time is when it created the incident. The file is updated at the end of each 5.5-hour run, and no times are recorded during quiet hours or Shabbat/Yom Tov.
 
+## How the next trains are running
+
+When a line is reported disrupted, the text also lists the next 3 trains each way on our journey, read from live departure boards only at the moment the text is sent:
+
+- Suffragette: Barking → South Tottenham and South Tottenham → Barking, from TfL's live boards (no key needed).
+- c2c: Westcliff → Barking and Barking → Westcliff will use National Rail's Live Departure Board once its key is set up (TfL has no live boards for c2c).
+
+Each train is written as cancelled, *N* minutes delayed, or on time, e.g. `Barking→South Tottenham: 14:05 cancelled, 14:20 3 minutes delayed, 14:35 on time.`
+
 ## Sending texts from a phone (ntfy + Tasker)
 
 When the `NTFY_TOPIC` secret is set, each text is published to that [ntfy](https://ntfy.sh) topic instead of PureSMS. An Android phone subscribed to the topic passes it to Tasker, which sends it as an SMS from the phone's SIM. If ntfy can't be reached and the PureSMS secrets are still set, the text goes through PureSMS instead.
