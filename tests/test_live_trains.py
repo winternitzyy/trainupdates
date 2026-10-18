@@ -77,7 +77,8 @@ class LiveTrainTests(unittest.TestCase):
              mock.patch.object(live_trains, "fetch_national_rail", side_effect=OSError("down")), \
              mock.patch.object(live_trains, "fetch_board", return_value=BOARD):
             self.assertEqual(live_trains.check("suffragette", NOW),
-                             "STO to BKG: 13:37 1 minute delayed, 13:52 cancelled, 14:07 7 minutes delayed.")
+                             "STO to BKG: 13:37 1 minute delayed, 13:52 cancelled, 14:07 7 minutes delayed. "
+                             "BKG to STO: 13:43 on time.")
 
     def test_no_boards_for_line(self):
         self.assertEqual(live_trains.check("unknown-line", NOW), "")
