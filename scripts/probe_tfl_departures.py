@@ -18,8 +18,7 @@ for name in ("Westcliff",):
     for m in res.get("matches", [])[:5]:
         print(f"{name}: {m.get('id')} | {m.get('name')} | modes={m.get('modes')}")
 
-for sid, line in (("910GBARKING", "suffragette"), ("910GSTOTNHM", "suffragette"),
-                  ("910GBARKING", "c2c"), ("910GWCLIFF", "c2c")):
+for sid, line in (("910GBARKING", "suffragette"), ("910GSTOTNHM", "suffragette")):
     path = f"/StopPoint/{sid}/ArrivalDepartures"
     try:
         data = get(path, lineIds=line)
@@ -29,6 +28,6 @@ for sid, line in (("910GBARKING", "suffragette"), ("910GSTOTNHM", "suffragette")
     print(f"\n== {sid} {line}: {len(data)} entries")
     statuses = sorted({d.get("departureStatus") for d in data})
     print("statuses seen:", statuses)
-    for d in sorted(data, key=lambda d: d.get("scheduledTimeOfDeparture") or "")[:8]:
+    for d in sorted(data, key=lambda d: d.get("scheduledTimeOfDeparture") or "~")[:8]:
         print({k: d.get(k) for k in ("destinationName", "scheduledTimeOfDeparture", "estimatedTimeOfDeparture",
                                      "departureStatus", "minutesAndSecondsToDeparture")})

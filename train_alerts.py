@@ -55,6 +55,7 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import c2c_status
+import live_trains
 import nr_incidents
 import shabbat
 import timing
@@ -149,7 +150,7 @@ def format_still_disrupted(status, limit=400):
         text += " " + " ".join(shown_reasons(status))
     if len(text) > limit:
         text = text[: limit - 3] + "..."
-    return text + " Still disrupted."
+    return text + " Still disrupted." + (" " + status["live"] if status.get("live") else "")
 
 
 def strip_line_name(reason, line):
@@ -190,7 +191,24 @@ def format_problem(status, limit=600):
     text = f"{status['name']}: {status['summary']}."
     if shown_reasons(status):
         text += " " + " ".join(shown_reasons(status))
-    return text if len(text) <= limit else text[: limit - 3] + "..."
+    text = text if len(text) <= limit else text[: limit - 3] + "..."
+    return text + (" " + status["live"] if status.get("live") else "")
+
+
+def add_live_trains(current):
+    """Add how the next trains on our journey are running to each disrupted line."""
+    for line_id, status in current.items():
+        if not line_id.startswith("_") and not status["ok"]:
+            status["live"] = live_trains.check(line_id, app_key=os.environ.get("TFL_APP_KEY"))
+    return current
+
+
+def drop_live_trains(current):
+    """The live board text is only for the text being sent; don't keep it."""
+    for line_id, status in current.items():
+        if not line_id.startswith("_"):
+            status.pop("live", None)
+    return current
 
 
 def send_sms(body, api_key, sender, to_number):
@@ -403,11 +421,12 @@ def send_all(messages, dry_run):
 def after_shabbat(lines, label, dry_run):
     """First check after Shabbat or Yom Tov: one text listing any lines still disrupted."""
     current = add_nr_explanations(apply_c2c_website(fetch_statuses(lines, os.environ.get("TFL_APP_KEY")), {}))
+    add_live_trains(current)
     problems = [format_still_disrupted(s) for s in current.values() if not s["ok"]]
     print(f"After {label}: " + ("; ".join(problems) or "all lines Good Service"), flush=True)
     if problems:
         send_all([" ".join(problems)], dry_run)
-    return current
+    return drop_live_trains(current)
 
 
 def check_once(lines, previous, dry_run):
@@ -416,10 +435,14 @@ def check_once(lines, previous, dry_run):
     tfl_c2c_bad = "c2c" in tfl and not tfl["c2c"]["ok"]
     current = add_nr_explanations(apply_c2c_website(tfl, previous))
     messages = build_messages(previous, current)
+    if messages:
+        # Only look at the live boards when we are about to send a text.
+        messages = build_messages(previous, add_live_trains(current))
     stamp = datetime.now(UK).strftime("%H:%M")
     print(f"{stamp} " + "; ".join(f"{s['name']}: {s['summary']}" for s in current.values()), flush=True)
     if messages:
         send_all(messages, dry_run)
+    drop_live_trains(current)
     current["_episode"] = track_sources(previous.get("_episode"), current, tfl_c2c_bad)
     return current
 
@@ -463,7 +486,8 @@ def main():
         return 0
 
     if os.environ.get("TEST_AFTER_SHABBAT") == "1":
-        current = add_nr_explanations(apply_c2c_website(fetch_statuses(lines, os.environ.get("TFL_APP_KEY")), {}))
+        current = add_live_trains(add_nr_explanations(
+            apply_c2c_website(fetch_statuses(lines, os.environ.get("TFL_APP_KEY")), {})))
         problems = [format_still_disrupted(s) for s in current.values() if not s["ok"]]
         if not problems:
             problems = ["c2c: Severe Delays since Sat 14:32. Signal failure at Upminster. "
@@ -472,7 +496,8 @@ def main():
         return 0
 
     if os.environ.get("TEST_SMS") == "1":
-        current = add_nr_explanations(apply_c2c_website(fetch_statuses(lines, os.environ.get("TFL_APP_KEY")), {}))
+        current = add_live_trains(add_nr_explanations(
+            apply_c2c_website(fetch_statuses(lines, os.environ.get("TFL_APP_KEY")), {})))
         status = " ".join(f"{v['name']}: {v['summary']}." if v["ok"] else format_problem(v)
                           for v in current.values())
         send_all([f"Test message. {status}"], dry_run)
