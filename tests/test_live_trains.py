@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import live_trains
-from train_alerts import format_problem, format_still_disrupted
+from train_alerts import build_messages, format_problem, format_still_disrupted
 
 NOW = datetime(2026, 10, 18, 12, 35, tzinfo=timezone.utc)
 
@@ -36,32 +36,39 @@ class LiveTrainTests(unittest.TestCase):
     def test_describe_board(self):
         trains = live_trains.next_trains(BOARD, "Barking", NOW)
         # 12:37 UTC is 13:37 in the UK in October.
-        self.assertEqual(live_trains.describe_board("South Tottenham", "Barking", trains),
-                         "South Tottenham→Barking: 13:37 1 minute delayed, 13:52 cancelled, "
+        self.assertEqual(live_trains.describe_board("STO", "BKG", trains),
+                         "STO→BKG: 13:37 1 minute delayed, 13:52 cancelled, "
                          "14:07 7 minutes delayed.")
 
     def test_on_time(self):
         trains = live_trains.next_trains(BOARD, "Gospel Oak", NOW)
-        self.assertEqual(live_trains.describe_board("Barking", "South Tottenham", trains),
-                         "Barking→South Tottenham: 13:43 on time.")
+        self.assertEqual(live_trains.describe_board("BKG", "STO", trains),
+                         "BKG→STO: 13:43 on time.")
 
     def test_delayed_without_estimate(self):
         board = [dep("Barking Rail Station", "2026-10-18T12:52:00Z", None, "Delayed")]
         trains = live_trains.next_trains(board, "Barking", NOW)
-        self.assertEqual(live_trains.describe_board("South Tottenham", "Barking", trains),
-                         "South Tottenham→Barking: 13:52 delayed.")
+        self.assertEqual(live_trains.describe_board("STO", "BKG", trains),
+                         "STO→BKG: 13:52 delayed.")
+
+    def test_live_text_added_when_back_to_good_service(self):
+        before = {"suffragette": {"name": "Suffragette", "ok": False, "summary": "Severe Delays", "reasons": []}}
+        now = {"suffragette": {"name": "Suffragette", "ok": True, "summary": "Good Service", "reasons": [],
+                               "live": "BKG→STO: 13:43 on time."}}
+        self.assertEqual(build_messages(before, now),
+                         ["Suffragette: back to Good Service. BKG→STO: 13:43 on time."])
 
     def test_no_boards_for_line(self):
         self.assertEqual(live_trains.check("unknown-line", NOW), "")
 
     def test_live_text_added_to_alerts(self):
         status = {"name": "Suffragette", "ok": False, "summary": "Severe Delays",
-                  "reasons": ["Signal failure."], "live": "Barking→South Tottenham: 13:43 cancelled."}
+                  "reasons": ["Signal failure."], "live": "BKG→STO: 13:43 cancelled."}
         self.assertEqual(format_problem(status),
-                         "Suffragette: Severe Delays. Signal failure. Barking→South Tottenham: 13:43 cancelled.")
+                         "Suffragette: Severe Delays. Signal failure. BKG→STO: 13:43 cancelled.")
         self.assertEqual(format_still_disrupted(status),
                          "Suffragette: Severe Delays. Signal failure. Still disrupted. "
-                         "Barking→South Tottenham: 13:43 cancelled.")
+                         "BKG→STO: 13:43 cancelled.")
 
 
 if __name__ == "__main__":

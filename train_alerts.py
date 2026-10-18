@@ -172,7 +172,8 @@ def build_messages(previous, current):
                 messages.append(format_problem(now))
             continue
         if now["ok"] and not before["ok"]:
-            messages.append(f"{now['name']}: back to Good Service.")
+            messages.append(f"{now['name']}: back to Good Service."
+                            + (" " + now["live"] if now.get("live") else ""))
         elif not now["ok"] and before["ok"]:
             messages.append(format_problem(now))
         elif not now["ok"] and (now["summary"] != before["summary"] or now["reasons"] != before["reasons"]):
@@ -195,10 +196,13 @@ def format_problem(status, limit=600):
     return text + (" " + status["live"] if status.get("live") else "")
 
 
-def add_live_trains(current, every_line=False):
-    """Add how the next trains on our journey are running to each disrupted line."""
+def add_live_trains(current, previous=None, every_line=False):
+    """Add how the next trains on our journey are running to each disrupted line,
+    and to each line that was disrupted at the last check (it may have just recovered)."""
+    previous = previous or {}
     for line_id, status in current.items():
-        if not line_id.startswith("_") and (every_line or not status["ok"]):
+        was_bad = not (previous.get(line_id) or {}).get("ok", True)
+        if not line_id.startswith("_") and (every_line or not status["ok"] or was_bad):
             status["live"] = live_trains.check(line_id, app_key=os.environ.get("TFL_APP_KEY"))
     return current
 
@@ -437,7 +441,7 @@ def check_once(lines, previous, dry_run):
     messages = build_messages(previous, current)
     if messages:
         # Only look at the live boards when we are about to send a text.
-        messages = build_messages(previous, add_live_trains(current))
+        messages = build_messages(previous, add_live_trains(current, previous))
     stamp = datetime.now(UK).strftime("%H:%M")
     print(f"{stamp} " + "; ".join(f"{s['name']}: {s['summary']}" for s in current.values()), flush=True)
     if messages:

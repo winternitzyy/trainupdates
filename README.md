@@ -42,12 +42,12 @@ Each c2c disruption gets a row in [`disruption_log.csv`](disruption_log.csv): th
 
 ## How the next trains are running
 
-When a line is reported disrupted, the text also lists the next 3 trains each way on our journey, read from live departure boards only at the moment the text is sent:
+When a line is reported disrupted, updated, or back to Good Service, the text also lists the next 3 trains each way on our journey, read from live departure boards only at the moment the text is sent:
 
-- Suffragette: Barking → South Tottenham and South Tottenham → Barking, from TfL's live boards (no key needed).
-- c2c: Westcliff → Barking and Barking → Westcliff will use National Rail's Live Departure Board once its key is set up (TfL has no live boards for c2c).
+- Suffragette: BKG→STO and STO→BKG, from TfL's live boards (no key needed).
+- c2c: WCF→BKG and BKG→WCF will use National Rail's Live Departure Board once its key is set up (TfL has no live boards for c2c).
 
-Each train is written as cancelled, *N* minutes delayed, or on time, e.g. `Barking→South Tottenham: 14:05 cancelled, 14:20 3 minutes delayed, 14:35 on time.`
+Each train is written as cancelled, *N* minutes delayed, or on time, e.g. `BKG→STO: 14:05 cancelled, 14:20 3 minutes delayed, 14:35 on time.`
 
 ## Sending texts from a phone (ntfy + Tasker)
 

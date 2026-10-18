@@ -1,7 +1,7 @@
 """How the next trains are actually running on our journey, from live
 departure boards. Only checked once a line is reported as disrupted, and added
 to that line's text, e.g.
-"Barking→South Tottenham: 14:05 cancelled, 14:20 3 minutes delayed, 14:35 on time."
+"BKG→STO: 14:05 cancelled, 14:20 3 minutes delayed, 14:35 on time."
 """
 
 import json
@@ -15,12 +15,12 @@ TFL_BOARD_URL = "https://api.tfl.gov.uk/StopPoint/{stop}/ArrivalDepartures"
 USER_AGENT = "trainupdates/1.0 (+https://github.com/winternitzyy/trainupdates)"
 TRAINS = 3
 
-# line -> boards to check: (from, to, TfL stop code, line id on that board,
+# line -> boards to check: (from, to as station codes, TfL stop code, line id on that board,
 # text that is in the destination name of trains going our way)
 BOARDS = {
     "suffragette": [
-        ("Barking", "South Tottenham", "910GBARKING", "suffragette", "Gospel Oak"),
-        ("South Tottenham", "Barking", "910GSTOTNHM", "suffragette", "Barking"),
+        ("BKG", "STO", "910GBARKING", "suffragette", "Gospel Oak"),
+        ("STO", "BKG", "910GSTOTNHM", "suffragette", "Barking"),
     ],
 }
 
