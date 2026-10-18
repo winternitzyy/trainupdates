@@ -29,8 +29,8 @@ def get(path, **params):
 
 
 now = datetime.now(UK).strftime("%Y%m%dT%H%M%S")
-for frm, to in (("WCF", "BKG"), ("BKG", "WCF")):
-    for endpoint in ("GetDepBoardWithDetails", "GetArrDepBoardWithDetails"):
+for frm, to in (("STO", "BKG"), ("WCF", "BKG")):
+    for endpoint in ("GetArrDepBoardWithDetails",):
         print(f"\n===== {endpoint} {frm} -> {to}")
         data = get(f"/{endpoint}/{frm}/{now}", numRows=6, filterCRS=to, filterType="to", timeWindow=120)
         if not data:
@@ -42,7 +42,7 @@ for frm, to in (("WCF", "BKG"), ("BKG", "WCF")):
             print("service fields:", sorted(services[0]))
         for s in services[:4]:
             print({k: s.get(k) for k in ("std", "etd", "atd", "platform", "isCancelled", "cancelReason",
-                                         "delayReason", "operatorCode", "departureType", "platformIsHidden")},
+                                         "delayReason", "operatorCode", "departureType", "platformIsHidden", "isPassengerService")},
                   "->", [d.get("crs") or d.get("locationName") for d in s.get("destination") or []])
         if services:
             print("first service raw:", json.dumps(services[0])[:1500])
