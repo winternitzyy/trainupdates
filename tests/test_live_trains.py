@@ -1,6 +1,7 @@
 import os
 import sys
 import unittest
+from unittest import mock
 from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -70,6 +71,13 @@ class LiveTrainTests(unittest.TestCase):
         trains = live_trains.next_national_rail_trains(board, NOW)
         self.assertEqual(live_trains.describe_board("WCF", "BKG", trains),
                          "WCF to BKG: 13:40 on time, 14:03 cancelled, 14:33 6 minutes delayed.")
+
+    def test_falls_back_to_tfl_when_national_rail_fails(self):
+        with mock.patch.dict(os.environ, {"NR_LDB_KEY": "k"}), \
+             mock.patch.object(live_trains, "fetch_national_rail", side_effect=OSError("down")), \
+             mock.patch.object(live_trains, "fetch_board", return_value=BOARD):
+            self.assertEqual(live_trains.check("suffragette", NOW),
+                             "STO to BKG: 13:37 1 minute delayed, 13:52 cancelled, 14:07 7 minutes delayed.")
 
     def test_no_boards_for_line(self):
         self.assertEqual(live_trains.check("unknown-line", NOW), "")

@@ -26,7 +26,7 @@ Environment variables:
                    c2c planned works from National Rail. TfL is the fallback.
   NR_LDB_KEY       Optional Rail Data Marketplace key for National Rail's staff
                    departure boards. When set, c2c texts list the next trains
-                   WCF to BKG (Suffragette STO to BKG comes from TfL).
+                   WCF to BKG and STO to BKG (for STO, TfL is the fallback).
   TRAIN_LINES      Optional, defaults to "c2c,suffragette".
   STATE_FILE       Optional, defaults to "state.json".
   DRY_RUN          If set to "1", print messages instead of sending them.

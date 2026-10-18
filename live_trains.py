@@ -3,8 +3,8 @@ departure boards. Only checked once a line is reported as disrupted, and added
 to that line's text, e.g.
 "STO to BKG: 14:05 cancelled, 14:20 3 minutes delayed, 14:35 on time."
 
-Suffragette boards come from TfL (no key needed). c2c boards come from
-National Rail's staff departure boards and need NR_LDB_KEY.
+Boards come from National Rail's staff departure boards (needs NR_LDB_KEY).
+For the Suffragette line, TfL's board (no key needed) is the fallback.
 """
 
 import json
@@ -22,11 +22,12 @@ USER_AGENT = "trainupdates/1.0 (+https://github.com/winternitzyy/trainupdates)"
 TRAINS = 3
 
 # line -> boards to check, from and to as station codes. Only the two ends of our
-# WCF–BKG–STO journey are checked, not the change at Barking. TfL boards list both
+# WCF–BKG–STO journey are checked, not the change at Barking. National Rail's board
+# is used first; a TfL stop is the fallback if it can't be read. TfL boards list both
 # directions, so trains going our way are picked by text in their destination name.
 BOARDS = {
     "suffragette": [
-        {"from": "STO", "to": "BKG", "tfl_stop": "910GSTOTNHM", "toward": "Barking"},
+        {"from": "STO", "to": "BKG", "national_rail": True, "tfl_stop": "910GSTOTNHM", "toward": "Barking"},
     ],
     "c2c": [
         {"from": "WCF", "to": "BKG", "national_rail": True},
@@ -133,15 +134,17 @@ def check(line, now=None, app_key=None):
     now = now or datetime.now(UK)
     parts = []
     for b in BOARDS.get(line, []):
-        try:
-            if b.get("national_rail"):
-                if not os.environ.get("NR_LDB_KEY"):
-                    continue
+        trains = None
+        if b.get("national_rail") and os.environ.get("NR_LDB_KEY"):
+            try:
                 trains = next_national_rail_trains(fetch_national_rail(b["from"], b["to"], now), now)
-            else:
+            except Exception as e:
+                print(f"National Rail board {b['from']} failed: {e}", flush=True)
+        if trains is None and b.get("tfl_stop"):
+            try:
                 trains = next_trains(fetch_board(b["tfl_stop"], line, app_key), b["toward"], now)
-        except Exception as e:
-            print(f"Live board {b['from']} failed: {e}", flush=True)
-            continue
-        parts.append(describe_board(b["from"], b["to"], trains))
+            except Exception as e:
+                print(f"TfL board {b['from']} failed: {e}", flush=True)
+        if trains is not None:
+            parts.append(describe_board(b["from"], b["to"], trains))
     return " ".join(parts)
