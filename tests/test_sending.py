@@ -21,13 +21,13 @@ class SendingTests(unittest.TestCase):
 
     def test_ntfy_used_when_topic_set(self):
         ntfy, sms = self.run_send({"NTFY_TOPIC": "trainalerts-abc", **PURESMS})
-        ntfy.assert_called_once_with("Train Alerts: c2c: back to Good Service.", "trainalerts-abc", None, None)
+        ntfy.assert_called_once_with("Traincliff Alerts: c2c: back to Good Service.", "trainalerts-abc", None, None)
         sms.assert_not_called()
 
     def test_puresms_used_without_topic(self):
         ntfy, sms = self.run_send(PURESMS)
         ntfy.assert_not_called()
-        sms.assert_called_once_with("Train Alerts: c2c: back to Good Service.", "k", "s", "+447700900123")
+        sms.assert_called_once_with("Traincliff Alerts: c2c: back to Good Service.", "k", "s", "+447700900123")
 
     def test_falls_back_to_puresms_when_ntfy_fails(self):
         ntfy, sms = self.run_send({"NTFY_TOPIC": "trainalerts-abc", **PURESMS},

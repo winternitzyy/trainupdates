@@ -70,7 +70,7 @@ PURESMS_URL = "https://connect-api.divergent.cloud/sms/send"
 NTFY_SERVER = "https://ntfy.sh"
 GOOD_SERVICE = 10
 NR_OPERATORS = {"c2c": "CC"}  # TfL line id -> National Rail operator code
-SMS_PREFIX = "Train Alerts: "
+SMS_PREFIX = "Traincliff Alerts: "
 USER_AGENT = "trainupdates/1.0 (+https://github.com/winternitzyy/trainupdates)"
 
 

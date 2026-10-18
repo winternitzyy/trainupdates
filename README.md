@@ -9,7 +9,7 @@ The repo needs to be public: Actions minutes are free and unlimited for public r
 Every Thursday from 18:00 UK time you also get one text previewing the coming weekend: whether each line is running normally or has planned works on Saturday and Sunday, for example:
 
 ```
-Train Alerts: Train status for the coming weekend.
+Traincliff Alerts: Train status for the coming weekend.
 Sat 17 Oct: c2c: running normally, no planned works. Suffragette: running normally, no planned works.
 Sun 18 Oct: c2c: running normally, no planned works. Suffragette: Part Closure. No service between Barking and Barking Riverside, please use local London Buses services.
 ```
@@ -17,7 +17,7 @@ Sun 18 Oct: c2c: running normally, no planned works. Suffragette: Part Closure. 
 Over Shabbat and Yom Tov no texts are sent. The pause starts at candle lighting in Westcliff-on-Sea (18 minutes before sunset the evening before) and ends 72 minutes after sunset on the last day (Rabbeinu Tam), with 5 extra minutes either side. Yom Tov follows the diaspora calendar (two-day festivals), and back-to-back Yom Tov and Shabbat days are treated as one pause. `python scripts/verify_shabbat.py` checks the dates and times against Hebcal. When it ends you get one text only if a line is still disrupted, saying when the disruption started:
 
 ```
-Train Alerts: c2c: Severe Delays since Sat 14:32. Signal failure at Upminster. Still disrupted.
+Traincliff Alerts: c2c: Severe Delays since Sat 14:32. Signal failure at Upminster. Still disrupted.
 ```
 
 ## Setup
