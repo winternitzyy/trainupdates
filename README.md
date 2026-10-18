@@ -45,7 +45,7 @@ Each c2c disruption gets a row in [`disruption_log.csv`](disruption_log.csv): th
 When a line is reported disrupted, updated, or back to Good Service, the text also lists the next 3 trains each way on our journey, read from live departure boards only at the moment the text is sent:
 
 - Suffragette: BKG→STO and STO→BKG, from TfL's live boards (no key needed).
-- c2c: WCF→BKG and BKG→WCF will use National Rail's Live Departure Board once its key is set up (TfL has no live boards for c2c).
+- c2c: WCF→BKG and BKG→WCF, from National Rail's Live Arrival and Departure Boards - Staff Version on the Rail Data Marketplace (TfL has no live boards for c2c). Needs its consumer key as the secret `NR_LDB_KEY`; without it c2c texts just leave the trains out.
 
 Each train is written as cancelled, *N* minutes delayed, or on time, e.g. `BKG→STO: 14:05 cancelled, 14:20 3 minutes delayed, 14:35 on time.`
 

@@ -58,6 +58,19 @@ class LiveTrainTests(unittest.TestCase):
         self.assertEqual(build_messages(before, now),
                          ["Suffragette: back to Good Service. BKG→STO: 13:43 on time."])
 
+    def test_national_rail_board(self):
+        # Shape copied from National Rail's staff board for Westcliff, filtered to Barking.
+        board = {"trainServices": [
+            {"std": "2026-10-18T13:30:00", "atd": "2026-10-18T13:31:00", "etd": None},  # gone
+            {"std": "2026-10-18T13:40:00", "etd": "2026-10-18T13:40:10", "isCancelled": False},
+            {"std": "2026-10-18T14:03:00", "etd": None, "isCancelled": True},
+            {"std": "2026-10-18T14:33:00", "etd": "2026-10-18T14:39:00", "isCancelled": False},
+            {"std": "2026-10-18T15:02:00", "etd": "2026-10-18T15:02:00", "isCancelled": False},
+        ]}
+        trains = live_trains.next_national_rail_trains(board, NOW)
+        self.assertEqual(live_trains.describe_board("WCF", "BKG", trains),
+                         "WCF→BKG: 13:40 on time, 14:03 cancelled, 14:33 6 minutes delayed.")
+
     def test_no_boards_for_line(self):
         self.assertEqual(live_trains.check("unknown-line", NOW), "")
 
