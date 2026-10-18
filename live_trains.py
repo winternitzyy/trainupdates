@@ -1,7 +1,7 @@
 """How the next trains are actually running on our journey, from live
 departure boards. Only checked once a line is reported as disrupted, and added
 to that line's text, e.g.
-"STO→BKG: 14:05 cancelled, 14:20 3 minutes delayed, 14:35 on time."
+"STO to BKG: 14:05 cancelled, 14:20 3 minutes delayed, 14:35 on time."
 
 Suffragette boards come from TfL (no key needed). c2c boards come from
 National Rail's staff departure boards and need NR_LDB_KEY.
@@ -123,8 +123,8 @@ def describe_train(scheduled, delay):
 
 def describe_board(frm, to, trains):
     if not trains:
-        return f"{frm}→{to}: no trains shown."
-    return f"{frm}→{to}: " + ", ".join(describe_train(*t) for t in trains) + "."
+        return f"{frm} to {to}: no trains shown."
+    return f"{frm} to {to}: " + ", ".join(describe_train(*t) for t in trains) + "."
 
 
 def check(line, now=None, app_key=None):

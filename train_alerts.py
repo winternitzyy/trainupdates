@@ -26,7 +26,7 @@ Environment variables:
                    c2c planned works from National Rail. TfL is the fallback.
   NR_LDB_KEY       Optional Rail Data Marketplace key for National Rail's staff
                    departure boards. When set, c2c texts list the next trains
-                   WCF→BKG (Suffragette STO→BKG comes from TfL).
+                   WCF to BKG (Suffragette STO to BKG comes from TfL).
   TRAIN_LINES      Optional, defaults to "c2c,suffragette".
   STATE_FILE       Optional, defaults to "state.json".
   DRY_RUN          If set to "1", print messages instead of sending them.
@@ -405,10 +405,21 @@ def puresms_configured():
     return all(os.environ.get(k) for k in ("PURESMS_API_KEY", "PURESMS_SENDER", "ALERT_TO_NUMBER"))
 
 
+# Characters outside the standard SMS alphabet make a text use 70-character parts
+# instead of 160, and some phones won't send long texts like that.
+PLAIN = {"\u2018": "'", "\u2019": "'", "\u201c": '"', "\u201d": '"', "\u2013": "-", "\u2014": "-",
+         "\u2026": "...", "\u2192": " to ", "\u00a0": " ", "\u2022": "-"}
+
+
+def plain_text(body):
+    """Swap curly quotes, long dashes and the like for plain characters."""
+    return "".join(PLAIN.get(c, c) for c in body)
+
+
 def send_all(messages, dry_run):
     topic = os.environ.get("NTFY_TOPIC")
     for m in messages:
-        body = SMS_PREFIX + m
+        body = plain_text(SMS_PREFIX + m)
         if dry_run:
             print(f"[DRY RUN] SMS via {'ntfy' if topic else 'PureSMS'}: {body}", flush=True)
             continue

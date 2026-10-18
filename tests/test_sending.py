@@ -39,5 +39,11 @@ class SendingTests(unittest.TestCase):
             self.run_send({"NTFY_TOPIC": "trainalerts-abc"}, ntfy_error=urllib.error.URLError("down"))
 
 
+class PlainTextTests(unittest.TestCase):
+    def test_swaps_characters_that_break_long_texts(self):
+        self.assertEqual(train_alerts.plain_text("c2c\u2019s \u201cnotice\u201d \u2013 WCF\u2192BKG\u2026"),
+                         "c2c's \"notice\" - WCF to BKG...")
+
+
 if __name__ == "__main__":
     unittest.main()
