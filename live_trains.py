@@ -21,16 +21,18 @@ LDB_URL = ("https://api1.raildata.org.uk/1010-live-arrival-and-departure-boards-
 USER_AGENT = "trainupdates/1.0 (+https://github.com/winternitzyy/trainupdates)"
 TRAINS = 3
 
-# line -> boards to check, from and to as station codes. Only the two ends of our
-# WCF–BKG–STO journey are checked, not the change at Barking. National Rail's board
-# is used first; a TfL stop is the fallback if it can't be read. TfL boards list both
-# directions, so trains going our way are picked by text in their destination name.
+# line -> boards to check, from and to as station codes: both directions of each leg
+# of our WCF–BKG–STO journey. National Rail's board is used first; a TfL stop is the
+# fallback if it can't be read. TfL boards list both directions, so trains going our
+# way are picked by text in their destination name.
 BOARDS = {
     "suffragette": [
         {"from": "STO", "to": "BKG", "national_rail": True, "tfl_stop": "910GSTOTNHM", "toward": "Barking"},
+        {"from": "BKG", "to": "STO", "national_rail": True, "tfl_stop": "910GBARKING", "toward": "Gospel Oak"},
     ],
     "c2c": [
         {"from": "WCF", "to": "BKG", "national_rail": True},
+        {"from": "BKG", "to": "WCF", "national_rail": True},
     ],
 }
 
