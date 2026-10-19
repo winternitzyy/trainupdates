@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import live_trains
-from train_alerts import build_messages, format_problem, format_still_disrupted
+from train_alerts import add_live_trains, build_messages, format_problem, format_still_disrupted
 
 NOW = datetime(2026, 10, 18, 12, 35, tzinfo=timezone.utc)
 
@@ -79,6 +79,16 @@ class LiveTrainTests(unittest.TestCase):
             self.assertEqual(live_trains.check("suffragette", NOW),
                              "STO to BKG: 13:37 1 minute delayed, 13:52 cancelled, 14:07 7 minutes delayed. "
                              "BKG to STO: 13:43 on time.")
+
+    def test_boards_intro_only_while_disrupted(self):
+        current = {"suffragette": {"name": "Suffragette", "ok": False, "summary": "Severe Delays", "reasons": []},
+                   "c2c": {"name": "c2c", "ok": True, "summary": "Good Service", "reasons": []}}
+        previous = {"c2c": {"ok": False}}
+        with mock.patch.object(live_trains, "check", return_value="STO to BKG: 13:07 on time."):
+            add_live_trains(current, previous)
+        self.assertEqual(current["suffragette"]["live"],
+                         "This is currently displayed on the departure boards: STO to BKG: 13:07 on time.")
+        self.assertEqual(current["c2c"]["live"], "STO to BKG: 13:07 on time.")
 
     def test_no_boards_for_line(self):
         self.assertEqual(live_trains.check("unknown-line", NOW), "")

@@ -71,6 +71,7 @@ NTFY_SERVER = "https://ntfy.sh"
 GOOD_SERVICE = 10
 NR_OPERATORS = {"c2c": "CC"}  # TfL line id -> National Rail operator code
 SMS_PREFIX = "Traincliff Alerts: "
+BOARDS_INTRO = "This is currently displayed on the departure boards: "
 USER_AGENT = "trainupdates/1.0 (+https://github.com/winternitzyy/trainupdates)"
 
 
@@ -206,7 +207,10 @@ def add_live_trains(current, previous=None, every_line=False):
     for line_id, status in current.items():
         was_bad = not (previous.get(line_id) or {}).get("ok", True)
         if not line_id.startswith("_") and (every_line or not status["ok"] or was_bad):
-            status["live"] = live_trains.check(line_id, app_key=os.environ.get("TFL_APP_KEY"))
+            live = live_trains.check(line_id, app_key=os.environ.get("TFL_APP_KEY"))
+            if live and not status["ok"]:
+                live = BOARDS_INTRO + live
+            status["live"] = live
     return current
 
 
