@@ -28,8 +28,12 @@ def get(path, **params):
 
 now = datetime.now(UK)
 print("now", now)
-for frm, to in (("WCF", "BKG"), ("BKG", "WCF"), ("WCF", "FST"), ("FST", "WCF")):
-    data = get(f"/GetArrDepBoardWithDetails/{frm}/{now:%Y%m%dT%H%M%S}", numRows=40, filterCRS=to,
+# Look back at this morning too: the staff boards accept a past time.
+times = [now.replace(hour=h, minute=0, second=0, microsecond=0) for h in (6, 8)] + [now]
+for when in times:
+  print(f"\n########## board from {when:%H:%M}")
+  for frm, to in (("WCF", "BKG"), ("BKG", "WCF"), ("WCF", "FST"), ("FST", "WCF")):
+    data = get(f"/GetArrDepBoardWithDetails/{frm}/{when:%Y%m%dT%H%M%S}", numRows=40, filterCRS=to,
                filterType="to", timeWindow=120)
     services = (data or {}).get("trainServices") or []
     cancelled = [s for s in services if s.get("isCancelled")]
