@@ -1,5 +1,5 @@
-"""Read National Rail's staff departure boards (LDBSVWS) for c2c between
-Westcliff and Barking, and print what they give back."""
+"""Show c2c trains on National Rail's staff boards (LDBSVWS) at Westcliff and
+Barking for the next 2 hours, with cancellations and delays."""
 import json
 import os
 import urllib.error
@@ -20,30 +20,23 @@ def get(path, **params):
                                                "Accept": "application/json"})
     try:
         with urllib.request.urlopen(req, timeout=30) as r:
-            body = r.read()
-            print(f"HTTP {r.status} {r.headers.get('Content-Type')}")
-            return json.loads(body)
+            return json.loads(r.read())
     except urllib.error.HTTPError as e:
-        print(f"HTTP {e.code}: {e.read()[:500]!r}")
+        print(f"HTTP {e.code}: {e.read()[:300]!r}")
         return None
 
 
-now = datetime.now(UK).strftime("%Y%m%dT%H%M%S")
-for frm, to in (("STO", "BKG"), ("WCF", "BKG")):
-    for endpoint in ("GetArrDepBoardWithDetails",):
-        print(f"\n===== {endpoint} {frm} -> {to}")
-        data = get(f"/{endpoint}/{frm}/{now}", numRows=6, filterCRS=to, filterType="to", timeWindow=120)
-        if not data:
-            continue
-        print("board fields:", sorted(data))
-        services = data.get("trainServices") or []
-        print(f"{len(services)} services")
-        if services:
-            print("service fields:", sorted(services[0]))
-        for s in services[:4]:
-            print({k: s.get(k) for k in ("std", "etd", "atd", "platform", "isCancelled", "cancelReason",
-                                         "delayReason", "operatorCode", "departureType", "platformIsHidden", "isPassengerService")},
-                  "->", [d.get("crs") or d.get("locationName") for d in s.get("destination") or []])
-        if services:
-            print("first service raw:", json.dumps(services[0])[:1500])
-        break  # one endpoint that works is enough
+now = datetime.now(UK)
+print("now", now)
+for frm, to in (("WCF", "BKG"), ("BKG", "WCF"), ("WCF", "FST"), ("FST", "WCF")):
+    data = get(f"/GetArrDepBoardWithDetails/{frm}/{now:%Y%m%dT%H%M%S}", numRows=40, filterCRS=to,
+               filterType="to", timeWindow=120)
+    services = (data or {}).get("trainServices") or []
+    cancelled = [s for s in services if s.get("isCancelled")]
+    print(f"\n===== {frm} -> {to}: {len(services)} trains, {len(cancelled)} cancelled; "
+          f"nrccMessages: {[ (m.get('Value') or m.get('value') or str(m))[:200] for m in (data or {}).get('nrccMessages') or []]}")
+    for s in services:
+        print(f"  {s.get('std','')[11:16]} etd={str(s.get('etd'))[11:16]} atd={str(s.get('atd'))[11:16]} "
+              f"cancelled={s.get('isCancelled')} type={s.get('departureType')} "
+              f"cancel={s.get('cancelReason')} delay={s.get('delayReason')} "
+              f"-> {[d.get('crs') for d in s.get('destination') or []]}")
