@@ -47,7 +47,7 @@ When a line is reported disrupted, updated, or back to Good Service, the text al
 - Suffragette: STO to BKG and BKG to STO, from the same National Rail staff boards, with TfL's live board (no key needed) as the fallback if National Rail can't be read.
 - c2c: WCF to BKG and BKG to WCF, from National Rail's Live Arrival and Departure Boards - Staff Version on the Rail Data Marketplace (TfL has no live boards for c2c). Needs its consumer key as the secret `NR_LDB_KEY`; without it c2c texts just leave the trains out.
 
-Each train is written as cancelled, *N* minutes delayed, or on time, e.g. `STO to BKG: 14:05 cancelled, 14:20 3 minutes delayed, 14:35 on time.` While the line is disrupted, the times start with "This is currently displayed on the departure boards:".
+Each train is written as cancelled, *N* minutes delayed, or on time (c2c trains taking the longer route are marked "(via Rainham)" or "(via Ockendon)"), e.g. `STO to BKG: 14:05 cancelled, 14:20 3 minutes delayed, 14:35 on time.` While the line is disrupted, the times start with "This is currently displayed on the departure boards:".
 
 ## Problems on the departure boards that nobody has announced
 

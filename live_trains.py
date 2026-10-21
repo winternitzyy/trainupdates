@@ -87,9 +87,23 @@ def next_national_rail_trains(board, now, count=TRAINS):
             delay = -1 if (s.get("departureType") or "").lower() == "delayed" else 0
         else:
             delay = max(0, int((estimated - scheduled).total_seconds() // 60))
-        trains.append((scheduled, delay))
+        trains.append((scheduled, delay, route(s)))
     trains.sort(key=lambda t: t[0])
     return trains[:count]
+
+
+# c2c trains between Westcliff and Barking normally run via Basildon; these
+# calling points mean a train takes one of the longer routes instead.
+ROUTE_STOPS = {"RNM": "via Rainham", "OCK": "via Ockendon"}
+
+
+def route(service):
+    """"via Rainham" / "via Ockendon" for a train off the usual route, else None."""
+    calls = {loc.get("crs") for loc in service.get("subsequentLocations") or [] if not loc.get("isPass")}
+    for crs, text in ROUTE_STOPS.items():
+        if crs in calls:
+            return text
+    return None
 
 
 def next_trains(board, toward, now, count=TRAINS):
@@ -118,8 +132,8 @@ def next_trains(board, toward, now, count=TRAINS):
     return trains[:count]
 
 
-def describe_train(scheduled, delay):
-    text = f"{scheduled.astimezone(UK):%H:%M}"
+def describe_train(scheduled, delay, via=None):
+    text = f"{scheduled.astimezone(UK):%H:%M}" + (f" ({via})" if via else "")
     if delay is None:
         return text + " cancelled"
     if delay == -1:

@@ -49,6 +49,21 @@ class FindProblemsTests(unittest.TestCase):
         self.assertFalse(found["alert"])
 
 
+class RouteTests(unittest.TestCase):
+    def test_via_rainham_is_shown(self):
+        stops = lambda *crs: [{"crs": c, "isPass": False} for c in crs]
+        board = {"trainServices": [
+            {"std": "2026-10-21T18:38:00", "isCancelled": True,
+             "subsequentLocations": stops("UPM", "RNM", "PFL", "GRY", "PSE", "LES", "WCF")},
+            {"std": "2026-10-21T18:49:00", "etd": "2026-10-21T18:49:00",
+             "subsequentLocations": stops("UPM", "BSO", "PSE", "LES", "WCF")},
+        ]}
+        now = datetime(2026, 10, 21, 17, 30, tzinfo=timezone.utc)
+        trains = live_trains.next_national_rail_trains(board, now)
+        self.assertEqual(live_trains.describe_board("BKG", "WCF", trains),
+                         "BKG to WCF: 18:38 (via Rainham) cancelled, 18:49 on time.")
+
+
 class WatchBoardsTests(unittest.TestCase):
     def watch(self, state, current, found, now=NOW):
         with mock.patch.object(live_trains, "board_problems", return_value=found), \
