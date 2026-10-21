@@ -24,6 +24,7 @@ TRAINS = 3
 WINDOW_MINUTES = 60
 LATE_MINUTES = 5
 ALERT_LATE = 2
+NEXT_AFTER = 2  # trains listed after the problem trains in a board alert
 
 # line -> boards to check, from and to as station codes: both directions of each leg
 # of our WCF–BKG–STO journey. National Rail's board is used first; a TfL stop is the
@@ -175,7 +176,11 @@ def find_problems(boards, now):
         cancelled += [f"{b['from']} {t[0].astimezone(UK):%H:%M}" for t in bad if t[1] is None]
         late += sum(1 for t in bad if t[1] is not None)
         if bad:
-            parts.append(f"{b['from']} to {b['to']}: " + ", ".join(describe_train(*t) for t in bad) + ".")
+            text = f"{b['from']} to {b['to']}: " + ", ".join(describe_train(*t) for t in bad) + "."
+            after = [t for t in trains if t[0] > bad[-1][0]][:NEXT_AFTER]
+            if after:
+                text += " Next trains: " + ", ".join(describe_train(*t) for t in after) + "."
+            parts.append(text)
     return {"alert": bool(cancelled) or late >= ALERT_LATE, "cancelled": cancelled, "late": late,
             "text": " ".join(parts)}
 

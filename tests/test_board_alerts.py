@@ -29,6 +29,10 @@ class FindProblemsTests(unittest.TestCase):
         self.assertEqual(found["cancelled"], ["WCF 08:20"])
         self.assertEqual(found["text"], "WCF to BKG: 08:20 cancelled.")
 
+    def test_next_two_trains_after_the_problem(self):
+        found = live_trains.find_problems([(BKG, [at(10, 0), at(38, None), at(49, 0), at(55, 3), at(63, 0)])], NOW)
+        self.assertEqual(found["text"], "BKG to WCF: 08:38 cancelled. Next trains: 08:49 on time, 08:55 3 minutes delayed.")
+
     def test_one_late_train_is_not_enough(self):
         found = live_trains.find_problems([(WCF, [at(5, 12), at(20, 0)])], NOW)
         self.assertFalse(found["alert"])
@@ -37,7 +41,8 @@ class FindProblemsTests(unittest.TestCase):
         found = live_trains.find_problems([(WCF, [at(5, 12)]), (BKG, [at(30, 5), at(40, 4)])], NOW)
         self.assertTrue(found["alert"])
         self.assertEqual(found["late"], 2)
-        self.assertEqual(found["text"], "WCF to BKG: 08:05 12 minutes delayed. BKG to WCF: 08:30 5 minutes delayed.")
+        self.assertEqual(found["text"], "WCF to BKG: 08:05 12 minutes delayed. "
+                                        "BKG to WCF: 08:30 5 minutes delayed. Next trains: 08:40 4 minutes delayed.")
 
     def test_trains_after_the_hour_are_ignored(self):
         found = live_trains.find_problems([(WCF, [at(70, None), at(80, 20), at(90, 20)])], NOW)

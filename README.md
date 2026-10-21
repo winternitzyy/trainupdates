@@ -54,7 +54,7 @@ Each train is written as cancelled, *N* minutes delayed, or on time, e.g. `STO t
 c2c, TfL and National Rail don't always announce a disruption: a few cancelled or late trains can show on the departure boards while the official status stays at Good Service. So every minute the checker also reads the boards for the journey (the same boards as above) and texts when, among trains due in the next hour, **any train is cancelled** or **2 or more are at least 5 minutes late**, as long as the line isn't already officially disrupted:
 
 ```
-Traincliff Alerts: c2c: 1 train cancelled. This is most likely a temporary issue as c2c haven't reported the disruption. This is currently displayed on the departure boards: WCF to BKG: 08:20 cancelled.
+Traincliff Alerts: c2c: 1 train cancelled. This is most likely a temporary issue as c2c haven't reported the disruption. This is currently displayed on the departure boards: WCF to BKG: 08:20 cancelled. Next trains: 08:35 on time, 08:47 on time.
 ```
 
 A further cancellation sends an "Update:" text. After 15 minutes with no problems on the boards it texts "trains running normally again on the departure boards". If the disruption is then announced officially, the normal alerts take over. **Actions → Send test SMS → Board check** shows what the board alert would say right now.
