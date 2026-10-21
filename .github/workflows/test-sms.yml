@@ -10,6 +10,7 @@ on:
           - Current status
           - Weekend preview
           - After Shabbat
+          - Board check
         default: Current status
       dry_run:
         description: "Only show the text in the log, don't send it"
@@ -40,4 +41,5 @@ jobs:
           TEST_SMS: ${{ inputs.message == 'Current status' && '1' || '' }}
           WEEKLY_PREVIEW: ${{ inputs.message == 'Weekend preview' && '1' || '' }}
           TEST_AFTER_SHABBAT: ${{ inputs.message == 'After Shabbat' && '1' || '' }}
+          TEST_BOARDS: ${{ inputs.message == 'Board check' && '1' || '' }}
         run: python train_alerts.py

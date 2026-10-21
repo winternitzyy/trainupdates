@@ -20,6 +20,10 @@ LDB_URL = ("https://api1.raildata.org.uk/1010-live-arrival-and-departure-boards-
            "LDBSVWS/api/20220120/GetArrDepBoardWithDetails/{crs}/{time}")
 USER_AGENT = "trainupdates/1.0 (+https://github.com/winternitzyy/trainupdates)"
 TRAINS = 3
+# Board alerts: any cancelled train, or this many trains LATE_MINUTES+ late, due in the next hour.
+WINDOW_MINUTES = 60
+LATE_MINUTES = 5
+ALERT_LATE = 2
 
 # line -> boards to check, from and to as station codes: both directions of each leg
 # of our WCF–BKG–STO journey. National Rail's board is used first; a TfL stop is the
@@ -130,23 +134,58 @@ def describe_board(frm, to, trains):
     return f"{frm} to {to}: " + ", ".join(describe_train(*t) for t in trains) + "."
 
 
-def check(line, now=None, app_key=None):
-    """Text about the next trains on our journey for `line`, or "" if we have no
-    boards for it or they can't be read. Never raises."""
-    now = now or datetime.now(UK)
-    parts = []
+def read_boards(line, now, app_key=None, count=TRAINS):
+    """[(board, trains)] for each board of `line`; trains is None if the board can't be read."""
+    result = []
     for b in BOARDS.get(line, []):
         trains = None
         if b.get("national_rail") and os.environ.get("NR_LDB_KEY"):
             try:
-                trains = next_national_rail_trains(fetch_national_rail(b["from"], b["to"], now), now)
+                trains = next_national_rail_trains(fetch_national_rail(b["from"], b["to"], now), now, count)
             except Exception as e:
                 print(f"National Rail board {b['from']} failed: {e}", flush=True)
         if trains is None and b.get("tfl_stop"):
             try:
-                trains = next_trains(fetch_board(b["tfl_stop"], line, app_key), b["toward"], now)
+                trains = next_trains(fetch_board(b["tfl_stop"], line, app_key), b["toward"], now, count)
             except Exception as e:
                 print(f"TfL board {b['from']} failed: {e}", flush=True)
-        if trains is not None:
-            parts.append(describe_board(b["from"], b["to"], trains))
-    return " ".join(parts)
+        result.append((b, trains))
+    return result
+
+
+def check(line, now=None, app_key=None):
+    """Text about the next trains on our journey for `line`, or "" if we have no
+    boards for it or they can't be read. Never raises."""
+    now = now or datetime.now(UK)
+    return " ".join(describe_board(b["from"], b["to"], trains)
+                    for b, trains in read_boards(line, now, app_key) if trains is not None)
+
+
+def is_late(delay):
+    return delay == -1 or (delay is not None and delay >= LATE_MINUTES)
+
+
+def find_problems(boards, now):
+    """Cancelled and late trains due in the next WINDOW_MINUTES on [(board, trains)].
+    Alert if any train is cancelled or ALERT_LATE trains are late."""
+    end = now + timedelta(minutes=WINDOW_MINUTES)
+    parts, cancelled, late = [], [], 0
+    for b, trains in boards:
+        bad = [t for t in trains if t[0] <= end and (t[1] is None or is_late(t[1]))]
+        cancelled += [f"{b['from']} {t[0].astimezone(UK):%H:%M}" for t in bad if t[1] is None]
+        late += sum(1 for t in bad if t[1] is not None)
+        if bad:
+            parts.append(f"{b['from']} to {b['to']}: " + ", ".join(describe_train(*t) for t in bad) + ".")
+    return {"alert": bool(cancelled) or late >= ALERT_LATE, "cancelled": cancelled, "late": late,
+            "text": " ".join(parts)}
+
+
+def board_problems(line, now=None, app_key=None):
+    """find_problems for `line`'s boards, or None if none of them could be read. Never raises."""
+    now = now or datetime.now(UK)
+    try:
+        boards = [(b, trains) for b, trains in read_boards(line, now, app_key, count=None) if trains is not None]
+        return find_problems(boards, now) if boards else None
+    except Exception as e:
+        print(f"Board check for {line} failed: {e}", flush=True)
+        return None

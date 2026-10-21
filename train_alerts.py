@@ -32,6 +32,7 @@ Environment variables:
   DRY_RUN          If set to "1", print messages instead of sending them.
   TEST_SMS         If set to "1", only send a test SMS with the current status.
   WEEKLY_PREVIEW   If set to "1", only send the coming weekend's preview now.
+  TEST_BOARDS      If set to "1", only send what the board alert would say now.
   TEST_AFTER_SHABBAT  If set to "1", only send a test of the after-Shabbat text,
                    using an example disruption if every line is running normally.
   RUN_MINUTES      Keep checking for this many minutes (default 0 = check once).
@@ -72,6 +73,9 @@ GOOD_SERVICE = 10
 NR_OPERATORS = {"c2c": "CC"}  # TfL line id -> National Rail operator code
 SMS_PREFIX = "Traincliff Alerts: "
 BOARDS_INTRO = "This is currently displayed on the departure boards: "
+# Who would normally announce a disruption on each line, for board alerts.
+ANNOUNCER = {"c2c": "c2c", "suffragette": "TfL"}
+BOARD_CLEAR_MINUTES = 15
 USER_AGENT = "trainupdates/1.0 (+https://github.com/winternitzyy/trainupdates)"
 
 
@@ -465,8 +469,62 @@ def check_once(lines, previous, dry_run):
     if messages:
         send_all(messages, dry_run)
     drop_live_trains(current)
+    board_messages, current["_boards"] = watch_boards(previous.get("_boards"), current)
+    if board_messages:
+        send_all(board_messages, dry_run)
     current["_episode"] = track_sources(previous.get("_episode"), current, tfl_c2c_bad)
     return current
+
+
+def count_text(n, word):
+    return f"{n} train{'s' if n != 1 else ''} {word}"
+
+
+def format_board_alert(status, line_id, found):
+    counts = []
+    if found["cancelled"]:
+        counts.append(count_text(len(found["cancelled"]), "cancelled"))
+    if found["late"]:
+        counts.append(count_text(found["late"], "delayed"))
+    return (f"{status['name']}: {' and '.join(counts)}. This is most likely a temporary issue as "
+            f"{ANNOUNCER.get(line_id, line_id)} haven't reported the disruption. " + BOARDS_INTRO + found["text"])
+
+
+def watch_boards(state, current, now=None):
+    """Alert when the departure boards show problems that nobody has announced: a train
+    cancelled, or two trains late, in the next hour. Only for lines officially running
+    normally; an official disruption takes over. Returns (messages, state to keep)."""
+    now = now or datetime.now(UK)
+    state = dict(state or {})
+    messages = []
+    for line_id, status in current.items():
+        if line_id.startswith("_") or line_id not in live_trains.BOARDS:
+            continue
+        was = state.get(line_id) or {}
+        if not status["ok"]:
+            state.pop(line_id, None)  # the official alerts cover it now
+            continue
+        found = live_trains.board_problems(line_id, now, os.environ.get("TFL_APP_KEY"))
+        if found is None:
+            continue  # boards unreadable: keep what we had
+        if found["alert"]:
+            seen = set(was.get("cancelled", []))
+            if not was.get("alert"):
+                messages.append(format_board_alert(status, line_id, found))
+            elif set(found["cancelled"]) - seen:
+                messages.append("Update: " + format_board_alert(status, line_id, found))
+            state[line_id] = {"alert": True, "cancelled": sorted(seen | set(found["cancelled"])),
+                              "clear_since": None}
+        elif was.get("alert"):
+            clear_since = was.get("clear_since") or now.isoformat()
+            if now - datetime.fromisoformat(clear_since) >= timedelta(minutes=BOARD_CLEAR_MINUTES):
+                live = live_trains.check(line_id, now, os.environ.get("TFL_APP_KEY"))
+                messages.append(f"{status['name']}: trains running normally again on the departure boards."
+                                + (" " + live if live else ""))
+                state.pop(line_id)
+            else:
+                state[line_id] = {**was, "clear_since": clear_since}
+    return messages, state
 
 
 def track_sources(episode, current, tfl_c2c_bad, now=None):
@@ -505,6 +563,21 @@ def main():
 
     if os.environ.get("WEEKLY_PREVIEW") == "1":
         send_weekly(lines, coming_weekend(datetime.now(UK)), dry_run)
+        return 0
+
+    if os.environ.get("TEST_BOARDS") == "1":
+        # What the board alert would say right now for each line, whatever its official status.
+        texts = []
+        for line_id in lines:
+            found = live_trains.board_problems(line_id, app_key=os.environ.get("TFL_APP_KEY"))
+            name = "c2c" if line_id == "c2c" else line_id.capitalize()
+            if found is None:
+                texts.append(f"{name}: boards could not be read.")
+            elif found["alert"]:
+                texts.append(format_board_alert({"name": name}, line_id, found))
+            else:
+                texts.append(f"{name}: no board problems in the next hour.")
+        send_all(["TEST. " + " ".join(texts)], dry_run)
         return 0
 
     if os.environ.get("TEST_AFTER_SHABBAT") == "1":

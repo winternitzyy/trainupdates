@@ -49,6 +49,16 @@ When a line is reported disrupted, updated, or back to Good Service, the text al
 
 Each train is written as cancelled, *N* minutes delayed, or on time, e.g. `STO to BKG: 14:05 cancelled, 14:20 3 minutes delayed, 14:35 on time.` While the line is disrupted, the times start with "This is currently displayed on the departure boards:".
 
+## Problems on the departure boards that nobody has announced
+
+c2c, TfL and National Rail don't always announce a disruption: a few cancelled or late trains can show on the departure boards while the official status stays at Good Service. So every minute the checker also reads the boards for the journey (the same boards as above) and texts when, among trains due in the next hour, **any train is cancelled** or **2 or more are at least 5 minutes late**, as long as the line isn't already officially disrupted:
+
+```
+Traincliff Alerts: c2c: 1 train cancelled. This is most likely a temporary issue as c2c haven't reported the disruption. This is currently displayed on the departure boards: WCF to BKG: 08:20 cancelled.
+```
+
+A further cancellation sends an "Update:" text. After 15 minutes with no problems on the boards it texts "trains running normally again on the departure boards". If the disruption is then announced officially, the normal alerts take over. **Actions → Send test SMS → Board check** shows what the board alert would say right now.
+
 ## Sending texts from a phone (ntfy + Tasker)
 
 When the `NTFY_TOPIC` secret is set, each text is published to that [ntfy](https://ntfy.sh) topic instead of PureSMS. An Android phone subscribed to the topic passes it to Tasker, which sends it as an SMS from the phone's SIM. If ntfy can't be reached and the PureSMS secrets are still set, the text goes through PureSMS instead.
