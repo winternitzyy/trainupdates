@@ -25,6 +25,8 @@ WINDOW_MINUTES = 60
 LATE_MINUTES = 5
 ALERT_LATE = 2
 NEXT_AFTER = 2  # trains listed after the problem trains in a board alert
+# Only a cancellation first seen this close to departure is last-minute; earlier ones are planned.
+LAST_MINUTE = 30
 
 # line -> boards to check, from and to as station codes: both directions of each leg
 # of our WCF–BKG–STO journey. National Rail's board is used first; a TfL stop is the
@@ -206,20 +208,20 @@ def find_problems(boards, now, planned=()):
 
 
 def note_cancellations(boards, seen, now):
-    """Remember how each train looked when first seen, so cancellations made in advance
-    (already cancelled when the train first shows on the board, about 2 hours ahead) can
-    be told apart from last-minute ones (seen running, then cancelled). Updates `seen`
-    and returns the keys of trains cancelled in advance."""
+    """Remember how each train looked, so cancellations made in advance can be told apart
+    from last-minute ones: a train seen running that is cancelled within LAST_MINUTE minutes
+    of departure. Anything else cancelled (already cancelled when first seen, or cancelled
+    earlier than that) is planned. Updates `seen` and returns the keys of planned cancellations."""
     planned = set()
     for b, trains in boards:
         for t in trains:
             key = train_key(b, t)
             if t[1] is None:
-                if seen.get(key) in (None, "planned"):
+                if seen.get(key) == "running" and t[0] - now <= timedelta(minutes=LAST_MINUTE):
+                    seen[key] = "cancelled"
+                elif seen.get(key) != "cancelled":
                     seen[key] = "planned"
                     planned.add(key)
-                else:
-                    seen[key] = "cancelled"
             elif key not in seen:
                 seen[key] = "running"
     cutoff = now - timedelta(hours=3)

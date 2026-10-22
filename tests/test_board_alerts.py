@@ -68,6 +68,14 @@ class CancelledInAdvanceTests(unittest.TestCase):
         self.assertTrue(found["alert"])
         self.assertEqual(found["cancelled"], ["WCF 08:20"])
 
+    def test_cancelled_an_hour_ahead_is_planned(self):
+        seen = {}
+        live_trains.note_cancellations([(BKG, [at(60, 0)])], seen, NOW)
+        boards = [(BKG, [at(60, None)])]
+        later = NOW
+        planned = live_trains.note_cancellations(boards, seen, later)
+        self.assertFalse(live_trains.find_problems(boards, later, planned)["alert"])
+
     def test_old_trains_are_forgotten(self):
         seen = {}
         live_trains.note_cancellations([(WCF, [at(20, 0)])], seen, NOW)
