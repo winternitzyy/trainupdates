@@ -180,13 +180,19 @@ def is_late(delay):
     return delay == -1 or (delay is not None and delay >= LATE_MINUTES)
 
 
-def find_problems(boards, now):
+def train_key(board, train):
+    return f"{board['from']} {train[0].isoformat()}"
+
+
+def find_problems(boards, now, planned=()):
     """Cancelled and late trains due in the next WINDOW_MINUTES on [(board, trains)].
-    Alert if any train is cancelled or ALERT_LATE trains are late."""
+    Alert if any train is cancelled or ALERT_LATE trains are late. Cancellations whose
+    train_key is in `planned` were made in advance and are left out."""
     end = now + timedelta(minutes=WINDOW_MINUTES)
     parts, cancelled, late = [], [], 0
     for b, trains in boards:
-        bad = [t for t in trains if t[0] <= end and (t[1] is None or is_late(t[1]))]
+        bad = [t for t in trains if t[0] <= end and ((t[1] is None and train_key(b, t) not in planned)
+                                                     or (t[1] is not None and is_late(t[1])))]
         cancelled += [f"{b['from']} {t[0].astimezone(UK):%H:%M}" for t in bad if t[1] is None]
         late += sum(1 for t in bad if t[1] is not None)
         if bad:
@@ -199,12 +205,42 @@ def find_problems(boards, now):
             "text": " ".join(parts)}
 
 
-def board_problems(line, now=None, app_key=None):
-    """find_problems for `line`'s boards, or None if none of them could be read. Never raises."""
+def note_cancellations(boards, seen, now):
+    """Remember how each train looked when first seen, so cancellations made in advance
+    (already cancelled when the train first shows on the board, about 2 hours ahead) can
+    be told apart from last-minute ones (seen running, then cancelled). Updates `seen`
+    and returns the keys of trains cancelled in advance."""
+    planned = set()
+    for b, trains in boards:
+        for t in trains:
+            key = train_key(b, t)
+            if t[1] is None:
+                if seen.get(key) in (None, "planned"):
+                    seen[key] = "planned"
+                    planned.add(key)
+                else:
+                    seen[key] = "cancelled"
+            elif key not in seen:
+                seen[key] = "running"
+    cutoff = now - timedelta(hours=3)
+    for key in list(seen):
+        when = _time(key.split(" ", 1)[1])
+        if when is None or when < cutoff:
+            del seen[key]
+    return planned
+
+
+def board_problems(line, now=None, app_key=None, seen=None):
+    """(find_problems for `line`'s boards, updated `seen`), or (None, seen) if none of
+    the boards could be read. `seen` is what note_cancellations remembers. Never raises."""
     now = now or datetime.now(UK)
+    seen = dict(seen or {})
     try:
         boards = [(b, trains) for b, trains in read_boards(line, now, app_key, count=None) if trains is not None]
-        return find_problems(boards, now) if boards else None
+        if not boards:
+            return None, seen
+        planned = note_cancellations(boards, seen, now)
+        return find_problems(boards, now, planned), seen
     except Exception as e:
         print(f"Board check for {line} failed: {e}", flush=True)
-        return None
+        return None, seen

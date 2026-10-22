@@ -49,6 +49,37 @@ class FindProblemsTests(unittest.TestCase):
         self.assertFalse(found["alert"])
 
 
+class CancelledInAdvanceTests(unittest.TestCase):
+    def test_cancelled_when_first_seen_is_left_out(self):
+        seen = {}
+        boards = [(WCF, [at(5, 0), at(20, None)])]
+        planned = live_trains.note_cancellations(boards, seen, NOW)
+        self.assertFalse(live_trains.find_problems(boards, NOW, planned)["alert"])
+        # Still left out on later checks.
+        planned = live_trains.note_cancellations(boards, seen, NOW + timedelta(minutes=1))
+        self.assertFalse(live_trains.find_problems(boards, NOW, planned)["alert"])
+
+    def test_seen_running_then_cancelled_alerts(self):
+        seen = {}
+        live_trains.note_cancellations([(WCF, [at(20, 0)])], seen, NOW)
+        boards = [(WCF, [at(20, None)])]
+        planned = live_trains.note_cancellations(boards, seen, NOW)
+        found = live_trains.find_problems(boards, NOW, planned)
+        self.assertTrue(found["alert"])
+        self.assertEqual(found["cancelled"], ["WCF 08:20"])
+
+    def test_old_trains_are_forgotten(self):
+        seen = {}
+        live_trains.note_cancellations([(WCF, [at(20, 0)])], seen, NOW)
+        live_trains.note_cancellations([], seen, NOW + timedelta(hours=4))
+        self.assertEqual(seen, {})
+
+    def test_late_trains_still_count(self):
+        boards = [(WCF, [at(5, 12), at(20, 9)])]
+        planned = live_trains.note_cancellations(boards, {}, NOW)
+        self.assertTrue(live_trains.find_problems(boards, NOW, planned)["alert"])
+
+
 class RouteTests(unittest.TestCase):
     def test_via_rainham_is_shown(self):
         stops = lambda *crs: [{"crs": c, "isPass": False} for c in crs]
@@ -66,7 +97,7 @@ class RouteTests(unittest.TestCase):
 
 class WatchBoardsTests(unittest.TestCase):
     def watch(self, state, current, found, now=NOW):
-        with mock.patch.object(live_trains, "board_problems", return_value=found), \
+        with mock.patch.object(live_trains, "board_problems", return_value=(found, {"WCF x": "running"})), \
              mock.patch.object(live_trains, "check", return_value="WCF to BKG: 08:30 on time."):
             return train_alerts.watch_boards(state, current, now)
 
@@ -88,7 +119,7 @@ class WatchBoardsTests(unittest.TestCase):
         disrupted = {"name": "c2c", "ok": False, "summary": "Severe Delays", "reasons": []}
         messages, state = self.watch({"c2c": {"alert": True}}, {"c2c": disrupted}, self.CANCELLED)
         self.assertEqual(messages, [])
-        self.assertNotIn("c2c", state)
+        self.assertEqual(state["c2c"], {"trains": {}})  # what the boards showed is kept
 
     def test_no_repeat_until_a_new_cancellation(self):
         state = {"c2c": {"alert": True, "cancelled": ["WCF 08:20"], "clear_since": None}}
@@ -105,7 +136,7 @@ class WatchBoardsTests(unittest.TestCase):
         messages, state = self.watch(state, {"c2c": good()}, self.CLEAR, NOW + timedelta(minutes=15))
         self.assertEqual(messages, ["c2c: trains running normally again on the departure boards. "
                                     "WCF to BKG: 08:30 on time."])
-        self.assertNotIn("c2c", state)
+        self.assertNotIn("alert", state["c2c"])
 
 
 if __name__ == "__main__":

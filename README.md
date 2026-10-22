@@ -57,6 +57,8 @@ c2c, TfL and National Rail don't always announce a disruption: a few cancelled o
 Traincliff Alerts: c2c: 1 train cancelled. This is most likely a temporary issue as c2c haven't reported the disruption. This is currently displayed on the departure boards: WCF to BKG: 08:20 cancelled. Next trains: 08:35 on time, 08:47 on time.
 ```
 
+Only last-minute cancellations count: a train already cancelled when it first shows on the board (about 2 hours ahead, i.e. cancelled in advance) is left out, while a train seen running and then cancelled alerts. What the boards showed is remembered between runs.
+
 A further cancellation sends an "Update:" text. After 15 minutes with no problems on the boards it texts "trains running normally again on the departure boards". If the disruption is then announced officially, the normal alerts take over. **Actions → Send test SMS → Board check** shows what the board alert would say right now.
 
 ## Sending texts from a phone (ntfy + Tasker)

@@ -492,7 +492,7 @@ def format_board_alert(status, line_id, found):
 
 def watch_boards(state, current, now=None):
     """Alert when the departure boards show problems that nobody has announced: a train
-    cancelled, or two trains late, in the next hour. Only for lines officially running
+    cancelled at the last minute, or two trains late, in the next hour. Only for lines officially running
     normally; an official disruption takes over. Returns (messages, state to keep)."""
     now = now or datetime.now(UK)
     state = dict(state or {})
@@ -502,28 +502,31 @@ def watch_boards(state, current, now=None):
             continue
         was = state.get(line_id) or {}
         if not status["ok"]:
-            state.pop(line_id, None)  # the official alerts cover it now
+            state[line_id] = {"trains": was.get("trains", {})}  # the official alerts cover it now
             continue
-        found = live_trains.board_problems(line_id, now, os.environ.get("TFL_APP_KEY"))
+        found, trains_seen = live_trains.board_problems(line_id, now, os.environ.get("TFL_APP_KEY"),
+                                                        was.get("trains"))
         if found is None:
             continue  # boards unreadable: keep what we had
         if found["alert"]:
-            seen = set(was.get("cancelled", []))
+            reported = set(was.get("cancelled", []))
             if not was.get("alert"):
                 messages.append(format_board_alert(status, line_id, found))
-            elif set(found["cancelled"]) - seen:
+            elif set(found["cancelled"]) - reported:
                 messages.append("Update: " + format_board_alert(status, line_id, found))
-            state[line_id] = {"alert": True, "cancelled": sorted(seen | set(found["cancelled"])),
-                              "clear_since": None}
+            state[line_id] = {"alert": True, "cancelled": sorted(reported | set(found["cancelled"])),
+                              "clear_since": None, "trains": trains_seen}
         elif was.get("alert"):
             clear_since = was.get("clear_since") or now.isoformat()
             if now - datetime.fromisoformat(clear_since) >= timedelta(minutes=BOARD_CLEAR_MINUTES):
                 live = live_trains.check(line_id, now, os.environ.get("TFL_APP_KEY"))
                 messages.append(f"{status['name']}: trains running normally again on the departure boards."
                                 + (" " + live if live else ""))
-                state.pop(line_id)
+                state[line_id] = {"trains": trains_seen}
             else:
-                state[line_id] = {**was, "clear_since": clear_since}
+                state[line_id] = {**was, "clear_since": clear_since, "trains": trains_seen}
+        else:
+            state[line_id] = {"trains": trains_seen}
     return messages, state
 
 
@@ -569,7 +572,7 @@ def main():
         # What the board alert would say right now for each line, whatever its official status.
         texts = []
         for line_id in lines:
-            found = live_trains.board_problems(line_id, app_key=os.environ.get("TFL_APP_KEY"))
+            found, _ = live_trains.board_problems(line_id, app_key=os.environ.get("TFL_APP_KEY"))
             name = "c2c" if line_id == "c2c" else line_id.capitalize()
             if found is None:
                 texts.append(f"{name}: boards could not be read.")
