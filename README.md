@@ -51,15 +51,15 @@ Each train is written as cancelled, *N* minutes delayed, or on time (c2c trains 
 
 ## Problems on the departure boards that nobody has announced
 
-c2c, TfL and National Rail don't always announce a disruption: a few cancelled or late trains can show on the departure boards while the official status stays at Good Service. So every minute the checker also reads the boards for the journey (the same boards as above) and texts when, among trains due in the next hour, **any train is cancelled** or **2 or more are at least 5 minutes late**, as long as the line isn't already officially disrupted:
+c2c, TfL and National Rail don't always announce a disruption: a few cancelled or late trains can show on the departure boards while the official status stays at Good Service. So every minute the checker also reads the boards for the journey (the same boards as above) and texts when, among trains due in the next hour, **2 or more trains are cancelled or at least 5 minutes late** (2 cancelled, 2 late, or 1 of each), as long as the line isn't already officially disrupted:
 
 ```
-Traincliff Alerts: c2c: 1 train cancelled. This is most likely a temporary issue as c2c haven't reported the disruption. This is currently displayed on the departure boards: WCF to BKG: 08:20 cancelled. Next trains: 08:35 on time, 08:47 on time.
+Traincliff Alerts: c2c: 1 train cancelled and 1 train delayed. This is most likely a temporary issue as c2c haven't reported the disruption. This is currently displayed on the departure boards: WCF to BKG: 08:20 cancelled, 08:35 7 minutes delayed. Next trains: 08:47 on time, 09:05 on time.
 ```
 
 Only last-minute cancellations count: a train seen running that is cancelled in the last 30 minutes before it is due. Trains cancelled earlier than that (or already cancelled when they first show on the board) are planned and left out. What the boards showed is remembered between runs.
 
-A further cancellation sends an "Update:" text. After 15 minutes with no problems on the boards it texts "trains running normally again on the departure boards". If the disruption is then announced officially, the normal alerts take over. **Actions → Send test SMS → Board check** shows what the board alert would say right now.
+A further cancellation sends an "Update:" text. There is no text when the boards clear up; after 15 minutes with no problems, the next problem is a new alert. If the disruption is then announced officially, the normal alerts take over. **Actions → Send test SMS → Board check** shows what the board alert would say right now.
 
 ## Sending texts from a phone (ntfy + Tasker)
 

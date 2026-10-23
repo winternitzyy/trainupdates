@@ -491,9 +491,10 @@ def format_board_alert(status, line_id, found):
 
 
 def watch_boards(state, current, now=None):
-    """Alert when the departure boards show problems that nobody has announced: a train
-    cancelled at the last minute, or two trains late, in the next hour. Only for lines officially running
-    normally; an official disruption takes over. Returns (messages, state to keep)."""
+    """Alert when the departure boards show problems that nobody has announced: two trains
+    cancelled at the last minute or late, in any mix, in the next hour. Only for lines officially
+    running normally; an official disruption takes over. No text when the boards clear up; after
+    BOARD_CLEAR_MINUTES clear the next problem is a new alert. Returns (messages, state to keep)."""
     now = now or datetime.now(UK)
     state = dict(state or {})
     messages = []
@@ -519,9 +520,6 @@ def watch_boards(state, current, now=None):
         elif was.get("alert"):
             clear_since = was.get("clear_since") or now.isoformat()
             if now - datetime.fromisoformat(clear_since) >= timedelta(minutes=BOARD_CLEAR_MINUTES):
-                live = live_trains.check(line_id, now, os.environ.get("TFL_APP_KEY"))
-                messages.append(f"{status['name']}: trains running normally again on the departure boards."
-                                + (" " + live if live else ""))
                 state[line_id] = {"trains": trains_seen}
             else:
                 state[line_id] = {**was, "clear_since": clear_since, "trains": trains_seen}

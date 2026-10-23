@@ -20,10 +20,11 @@ LDB_URL = ("https://api1.raildata.org.uk/1010-live-arrival-and-departure-boards-
            "LDBSVWS/api/20220120/GetArrDepBoardWithDetails/{crs}/{time}")
 USER_AGENT = "trainupdates/1.0 (+https://github.com/winternitzyy/trainupdates)"
 TRAINS = 3
-# Board alerts: any cancelled train, or this many trains LATE_MINUTES+ late, due in the next hour.
+# Board alerts: ALERT_TRAINS or more trains, cancelled or LATE_MINUTES+ late, due in the next hour.
+# (Only last-minute cancellations count, so those are always due within LAST_MINUTE.)
 WINDOW_MINUTES = 60
 LATE_MINUTES = 5
-ALERT_LATE = 2
+ALERT_TRAINS = 2
 NEXT_AFTER = 2  # trains listed after the problem trains in a board alert
 # Only a cancellation first seen this close to departure is last-minute; earlier ones are planned.
 LAST_MINUTE = 30
@@ -188,7 +189,7 @@ def train_key(board, train):
 
 def find_problems(boards, now, planned=()):
     """Cancelled and late trains due in the next WINDOW_MINUTES on [(board, trains)].
-    Alert if any train is cancelled or ALERT_LATE trains are late. Cancellations whose
+    Alert if ALERT_TRAINS trains are cancelled or late, in any mix. Cancellations whose
     train_key is in `planned` were made in advance and are left out."""
     end = now + timedelta(minutes=WINDOW_MINUTES)
     parts, cancelled, late = [], [], 0
@@ -203,7 +204,7 @@ def find_problems(boards, now, planned=()):
             if after:
                 text += " Next trains: " + ", ".join(describe_train(*t) for t in after) + "."
             parts.append(text)
-    return {"alert": bool(cancelled) or late >= ALERT_LATE, "cancelled": cancelled, "late": late,
+    return {"alert": len(cancelled) + late >= ALERT_TRAINS, "cancelled": cancelled, "late": late,
             "text": " ".join(parts)}
 
 

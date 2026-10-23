@@ -23,11 +23,19 @@ def good(name="c2c"):
 
 
 class FindProblemsTests(unittest.TestCase):
-    def test_one_cancellation_alerts(self):
+    def test_one_cancellation_is_not_enough(self):
         found = live_trains.find_problems([(WCF, [at(5, 0), at(20, None)]), (BKG, [at(10, 0)])], NOW)
+        self.assertFalse(found["alert"])
+
+    def test_two_cancellations_alert(self):
+        found = live_trains.find_problems([(WCF, [at(5, 0), at(20, None)]), (BKG, [at(10, None)])], NOW)
         self.assertTrue(found["alert"])
-        self.assertEqual(found["cancelled"], ["WCF 08:20"])
-        self.assertEqual(found["text"], "WCF to BKG: 08:20 cancelled.")
+        self.assertEqual(found["cancelled"], ["WCF 08:20", "BKG 08:10"])
+        self.assertEqual(found["text"], "WCF to BKG: 08:20 cancelled. BKG to WCF: 08:10 cancelled.")
+
+    def test_one_cancellation_and_one_late_alert(self):
+        found = live_trains.find_problems([(WCF, [at(5, 8), at(20, None)])], NOW)
+        self.assertTrue(found["alert"])
 
     def test_next_two_trains_after_the_problem(self):
         found = live_trains.find_problems([(BKG, [at(10, 0), at(38, None), at(49, 0), at(55, 3), at(63, 0)])], NOW)
@@ -61,12 +69,12 @@ class CancelledInAdvanceTests(unittest.TestCase):
 
     def test_seen_running_then_cancelled_alerts(self):
         seen = {}
-        live_trains.note_cancellations([(WCF, [at(20, 0)])], seen, NOW)
-        boards = [(WCF, [at(20, None)])]
+        live_trains.note_cancellations([(WCF, [at(20, 0), at(25, 0)])], seen, NOW)
+        boards = [(WCF, [at(20, None), at(25, None)])]
         planned = live_trains.note_cancellations(boards, seen, NOW)
         found = live_trains.find_problems(boards, NOW, planned)
         self.assertTrue(found["alert"])
-        self.assertEqual(found["cancelled"], ["WCF 08:20"])
+        self.assertEqual(found["cancelled"], ["WCF 08:20", "WCF 08:25"])
 
     def test_cancelled_an_hour_ahead_is_planned(self):
         seen = {}
@@ -137,15 +145,14 @@ class WatchBoardsTests(unittest.TestCase):
         messages, _ = self.watch(state, {"c2c": good()}, more)
         self.assertTrue(messages[0].startswith("Update: c2c: 2 trains cancelled."))
 
-    def test_running_normally_again_after_15_clear_minutes(self):
+    def test_no_text_when_the_boards_clear(self):
         state = {"c2c": {"alert": True, "cancelled": ["WCF 08:20"], "clear_since": None}}
         messages, state = self.watch(state, {"c2c": good()}, self.CLEAR)
         self.assertEqual(messages, [])
+        self.assertTrue(state["c2c"]["alert"])
         messages, state = self.watch(state, {"c2c": good()}, self.CLEAR, NOW + timedelta(minutes=15))
-        self.assertEqual(messages, ["c2c: trains running normally again on the departure boards. "
-                                    "WCF to BKG: 08:30 on time."])
-        self.assertNotIn("alert", state["c2c"])
-
+        self.assertEqual(messages, [])
+        self.assertNotIn("alert", state["c2c"])  # the next problem is a new alert
 
 if __name__ == "__main__":
     unittest.main()
