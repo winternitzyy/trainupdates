@@ -39,6 +39,7 @@ Environment variables:
   CHECK_SECONDS    Seconds between checks when looping (default 60).
   QUIET_HOURS      UK-time window with no checks, e.g. "00:00-05:00" (default).
                    Set to "" to check around the clock.
+  MORNING_REMINDER UK time of the daily text for lines still disrupted, "06:30" (default); "" for none.
   SHABBAT          No texts over Shabbat and Yom Tov in Westcliff-on-Sea, from
                    candle lighting until the end; then one text if a line is
                    still disrupted. On by default; set to "0" to turn off.
@@ -260,6 +261,24 @@ def in_quiet_hours(window, now=None):
     return start <= t < end if start < end else t >= start or t < end
 
 
+def morning_due(now, last_sent, at):
+    """True for an hour from `at` ("HH:MM", UK time) until today's morning reminder is sent."""
+    if not at or last_sent == now.date().isoformat():
+        return False
+    start = datetime.combine(now.date(), datetime.strptime(at, "%H:%M").time(), now.tzinfo)
+    return start <= now < start + timedelta(hours=1)
+
+
+def send_morning(state, dry_run):
+    """Each morning, one text for lines that are still disrupted (they only text on changes)."""
+    current = {k: v for k, v in state.items() if not k.startswith("_")}
+    disrupted = {k: dict(v) for k, v in current.items() if not v.get("ok", True)}
+    if not disrupted:
+        return
+    add_live_trains(disrupted)
+    send_all(["Morning update: " + " ".join(format_still_disrupted(s) for s in disrupted.values())], dry_run)
+
+
 def coming_weekend(now):
     """Saturday and Sunday of the coming weekend."""
     saturday = (now + timedelta(days=(5 - now.weekday()) % 7 or 7)).date()
@@ -455,11 +474,30 @@ def after_shabbat(lines, label, dry_run):
     return drop_live_trains(current)
 
 
+RECOVER_MINUTES = 5  # Good Service must last this long before "back to Good Service" is sent
+
+
+def hold_recoveries(previous, current, now=None):
+    """A disrupted line reading Good Service again stays disrupted until that has lasted
+    RECOVER_MINUTES, so a brief blip (e.g. a source not loading) doesn't send a false
+    all-clear followed by a second alert."""
+    now = now or datetime.now(UK)
+    for line_id, status in current.items():
+        before = previous.get(line_id)
+        if line_id.startswith("_") or not before or before.get("ok", True) or not status["ok"]:
+            continue
+        good_since = before.get("good_since") or now.isoformat()
+        if now - datetime.fromisoformat(good_since) < timedelta(minutes=RECOVER_MINUTES):
+            current[line_id] = {**before, "good_since": good_since,
+                                **({"fetched": status["fetched"]} if "fetched" in status else {})}
+    return current
+
+
 def check_once(lines, previous, dry_run):
     """Check the lines, text any changes, and return the state to keep."""
     tfl = fetch_statuses(lines, os.environ.get("TFL_APP_KEY"))
     tfl_c2c_bad = "c2c" in tfl and not tfl["c2c"]["ok"]
-    current = add_nr_explanations(apply_c2c_website(tfl, previous))
+    current = hold_recoveries(previous, add_nr_explanations(apply_c2c_website(tfl, previous)))
     messages = build_messages(previous, current)
     if messages:
         # Only look at the live boards when we are about to send a text.
@@ -561,6 +599,7 @@ def main():
     run_minutes = float(os.environ.get("RUN_MINUTES") or 0)
     interval = float(os.environ.get("CHECK_SECONDS") or 60)
     quiet = os.environ.get("QUIET_HOURS", "00:00-05:00")
+    morning_at = os.environ.get("MORNING_REMINDER", "06:30")
 
     if os.environ.get("WEEKLY_PREVIEW") == "1":
         send_weekly(lines, coming_weekend(datetime.now(UK)), dry_run)
@@ -617,6 +656,10 @@ def main():
             print("Quiet hours, not checking.", flush=True)
         else:
             try:
+                if morning_due(now, state.get("_morning"), morning_at):
+                    send_morning(state, dry_run)
+                    state["_morning"] = now.date().isoformat()
+                    save_state(state_file, state)
                 if weekly_due(now, state.get("_weekly")):
                     send_weekly(lines, coming_weekend(now), dry_run)
                     state["_weekly"] = now.strftime("%G-W%V")

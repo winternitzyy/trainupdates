@@ -61,6 +61,10 @@ Only last-minute cancellations count: a train seen running that is cancelled in 
 
 A further cancellation sends an "Update:" text. There is no text when the boards clear up; after 15 minutes with no problems, the next problem is a new alert. If the disruption is then announced officially, the normal alerts take over. **Actions → Send test SMS → Board check** shows what the board alert would say right now.
 
+### Morning update and brief all-clears
+
+While a line stays disrupted the checker only texts when something changes, so at 06:30 each day it sends one "Morning update:" text for any line still disrupted, with the live trains (`MORNING_REMINDER`, "" to turn off). A disrupted line has to read Good Service for 5 minutes before "back to Good Service" is sent, so a source briefly not loading doesn't send a false all-clear.
+
 ## Sending texts from a phone (ntfy + Tasker)
 
 When the `NTFY_TOPIC` secret is set, each text is published to that [ntfy](https://ntfy.sh) topic instead of PureSMS. An Android phone subscribed to the topic passes it to Tasker, which sends it as an SMS from the phone's SIM. If ntfy can't be reached and the PureSMS secrets are still set, the text goes through PureSMS instead.
