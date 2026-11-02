@@ -48,6 +48,7 @@ Environment variables:
   SHABBAT_MARGIN_MINUTES  Extra minutes added before and after (default 5).
 """
 
+import difflib
 import json
 import re
 import os
@@ -170,24 +171,93 @@ def strip_line_name(reason, line):
     return reason
 
 
-def build_messages(previous, current):
-    """Return SMS texts for lines whose status changed since the last run."""
+UPDATE_MINUTES = 30  # at least this long between "Update:" texts for a line
+# Status parts that come and go during a long disruption; on their own they're not worth a text.
+MINOR_PARTS = {"minor delays", "reduced service", "good service"}
+NEW_WORDS = 3  # a sentence needs this many words not texted before to be news
+
+
+# Words that say nothing new about a disruption on their own.
+COMMON_WORDS = set("""the and for from with that this are will may being have been there their than then
+until after before between due line lines service services train trains running rest some all any
+monday tuesday wednesday thursday friday saturday sunday january february march april june july
+august september october november december""".split())
+
+
+def _words(text):
+    """Letters only, so a changed date or time doesn't make a sentence look new."""
+    return " ".join(re.findall(r"[a-z]+", text.lower()))
+
+
+def _content_words(text):
+    return {w for w in _words(text).split() if len(w) > 3 and w not in COMMON_WORDS}
+
+
+def _parts(summary):
+    return {p.strip().lower() for p in summary.split(",")}
+
+
+def has_new_info(texted, status):
+    """True if `status` says something not yet texted during this disruption: a new part
+    in its summary (e.g. "Part Suspended") or a sentence with NEW_WORDS words not texted
+    before. Dropped sentences, rewording and changed dates or times don't count."""
+    if _parts(status["summary"]) - set(texted["parts"]) - MINOR_PARTS:
+        return True
+    told = set(texted["words"])
+    return any(len(_content_words(x) - told) >= NEW_WORDS for x in _sentences(all_reasons(status)))
+
+
+def _sentences(reasons):
+    return [x for r in reasons for x in re.split(r"(?<=[.!?])\s+", r) if _words(x)]
+
+
+def all_reasons(status):
+    """TfL's or c2c's reasons and National Rail's explanation, whichever is shown."""
+    return list(status["reasons"]) + list(status.get("nr_reasons") or [])
+
+
+def texted_now(status, now, before=None):
+    """What has been texted about a disruption, adding `status` to `before`."""
+    before = before or {"parts": [], "words": []}
+    return {"parts": sorted(set(before["parts"]) | _parts(status["summary"])),
+            "words": sorted(set(before["words"]) | {w for r in all_reasons(status) for w in _content_words(r)}),
+            "at": now.isoformat()}
+
+
+def build_messages(previous, current, now=None):
+    """Return SMS texts for lines whose status changed since the last run. Each disrupted
+    line keeps "texted", what has been texted about the disruption so far, so "Update:"
+    texts are only for new information, and at most one every UPDATE_MINUTES."""
+    now = now or datetime.now(UK)
     messages = []
-    for line_id, now in current.items():
+    for line_id, status in current.items():
+        if line_id.startswith("_"):
+            continue
         before = previous.get(line_id)
         if before is None:
             # On the first run, only report a line that already has problems.
-            if not now["ok"]:
-                messages.append(format_problem(now))
+            if not status["ok"]:
+                messages.append(format_problem(status))
+                status["texted"] = texted_now(status, now)
             continue
-        if now["ok"] and not before["ok"]:
-            messages.append(f"{now['name']}: back to Good Service."
-                            + (" " + now["live"] if now.get("live") else ""))
-        elif not now["ok"] and before["ok"]:
-            messages.append(format_problem(now))
-        elif not now["ok"] and (now["summary"] != before["summary"] or now["reasons"] != before["reasons"]):
-            # The line was already disrupted; this is new information about it.
-            messages.append("Update: " + format_problem(now))
+        if status["ok"]:
+            if not before["ok"]:
+                messages.append(f"{status['name']}: back to Good Service."
+                                + (" " + status["live"] if status.get("live") else ""))
+        elif before["ok"]:
+            messages.append(format_problem(status))
+            status["texted"] = texted_now(status, now)
+        else:
+            # The line was already disrupted: only text new information about it.
+            last = before.get("texted")
+            if not last or "words" not in last:  # state from before "texted" was kept
+                last = {**texted_now(before, now), "at": None}
+            due = not last.get("at") or now - datetime.fromisoformat(last["at"]) >= timedelta(minutes=UPDATE_MINUTES)
+            if due and has_new_info(last, status):
+                messages.append("Update: " + format_problem(status))
+                status["texted"] = texted_now(status, now, last)
+            else:
+                status["texted"] = last
     return messages
 
 

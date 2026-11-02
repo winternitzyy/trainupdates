@@ -59,3 +59,56 @@ class MorningTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class UpdateTests(unittest.TestCase):
+    SUFF = {"name": "Suffragette", "ok": False, "summary": "Minor Delays, Part Closure",
+            "reasons": ["No service between South Tottenham and Barking Riverside due to an operational "
+                        "incident. MINOR DELAYS on the rest of the line. Disruption expected until the end "
+                        "of the week."]}
+
+    def step(self, previous, reasons=None, summary=None, minutes=0):
+        status = dict(self.SUFF, reasons=reasons or self.SUFF["reasons"], summary=summary or self.SUFF["summary"])
+        messages = train_alerts.build_messages({"suffragette": previous}, {"suffragette": status},
+                                               NOW + timedelta(minutes=minutes))
+        return messages, status
+
+    def started(self):
+        status = dict(self.SUFF)
+        train_alerts.build_messages({"suffragette": dict(self.SUFF, ok=True)}, {"suffragette": status}, NOW)
+        return status
+
+    def test_rewording_and_dates_are_not_news(self):
+        messages, _ = self.step(self.started(), [
+            "No service between South Tottenham and Barking Riverside until further notice. "
+            "GOOD SERVICE on the rest of the line. Disruption expected until early next week."], minutes=60)
+        self.assertEqual(messages, [])
+
+    def test_dropped_sentence_and_minor_delays_are_not_news(self):
+        first = self.started()
+        messages, second = self.step(first, ["No service between South Tottenham and Barking Riverside."],
+                                     summary="Part Closure", minutes=60)
+        self.assertEqual(messages, [])
+        messages, _ = self.step(second, minutes=120)  # MINOR DELAYS back again
+        self.assertEqual(messages, [])
+
+    def test_note_coming_back_each_night_is_texted_once(self):
+        note = ("The 2303 train from Barking Riverside to Gospel Oak will terminate at Upper Holloway.")
+        status = self.started()
+        for night, expected in ((1, 1), (2, 0)):
+            messages, status = self.step(status, self.SUFF["reasons"] + [note], minutes=night * 1440)
+            self.assertEqual(len(messages), expected)
+            _, status = self.step(status, minutes=night * 1440 + 40)
+
+    def test_new_information_is_texted_but_not_within_30_minutes(self):
+        status = self.started()
+        extra = ["Tickets are being accepted on London Underground and London Buses."]
+        messages, held = self.step(status, self.SUFF["reasons"] + extra, minutes=10)
+        self.assertEqual(messages, [])
+        messages, _ = self.step(held, self.SUFF["reasons"] + extra, minutes=30)
+        self.assertEqual(len(messages), 1)
+        self.assertTrue(messages[0].startswith("Update: Suffragette:"))
+
+    def test_new_status_part_is_texted(self):
+        messages, _ = self.step(self.started(), summary="Minor Delays, Part Closure, Part Suspended", minutes=40)
+        self.assertEqual(len(messages), 1)
